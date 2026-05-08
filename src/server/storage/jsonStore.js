@@ -21,10 +21,13 @@ export class JsonAuctionStore {
     if (stateNeedsRefresh(state)) return this.writeState(freshState());
     return state;
   }
+  async readStateAsync() { return this.readState(); }
   writeState(state) {
     state.updatedAt = Date.now();
     fs.writeFileSync(this.config.stateFile, JSON.stringify(state, null, 2));
     return state;
   }
+  async writeStateAsync(state) { return this.writeState(state); }
   resetState() { return this.writeState(freshState()); }
+  async resetStateAsync() { return this.resetState(); }
 }

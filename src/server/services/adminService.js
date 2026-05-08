@@ -3,15 +3,15 @@ import { audit, normalizeLot, slug } from './auctionService.js';
 
 export class AdminService {
   constructor(store) { this.store = store; }
-  auditEvents() { return this.store.readState().audit || []; }
-  openHours(hours) {
-    const state = this.store.readState();
+  async auditEvents() { return (await this.store.readStateAsync()).audit || []; }
+  async openHours(hours) {
+    const state = await this.store.readStateAsync();
     state.lots = state.lots.map((lot, i) => ({ ...lot, endAt: Date.now() + (hours * hour) + i * 7 * 60 * 1000 }));
     audit(state, 'admin', 'lots.open_hours', { hours });
-    return { state: this.store.writeState(state), message: `All auctions opened for about ${hours} hours` };
+    return { state: await this.store.writeStateAsync(state), message: `All auctions opened for about ${hours} hours` };
   }
-  saveLot(incoming) {
-    const state = this.store.readState();
+  async saveLot(incoming) {
+    const state = await this.store.readStateAsync();
     const id = slug(incoming.id || incoming.model);
     const existingIndex = state.lots.findIndex(l => l.id === id);
     const existing = existingIndex >= 0 ? state.lots[existingIndex] : {};
@@ -19,13 +19,13 @@ export class AdminService {
     if (existingIndex >= 0) state.lots[existingIndex] = lot;
     else state.lots.unshift(lot);
     audit(state, 'admin', existingIndex >= 0 ? 'lot.updated' : 'lot.added', { lotId: lot.id, model: lot.model });
-    return { state: this.store.writeState(state), message: existingIndex >= 0 ? 'Lot updated' : 'Lot added' };
+    return { state: await this.store.writeStateAsync(state), message: existingIndex >= 0 ? 'Lot updated' : 'Lot added' };
   }
-  removeLot(id) {
-    const state = this.store.readState();
+  async removeLot(id) {
+    const state = await this.store.readStateAsync();
     const removed = state.lots.find(l => l.id === id);
     state.lots = state.lots.filter(l => l.id !== id);
     audit(state, 'admin', 'lot.removed', { lotId: id, model: removed?.model });
-    return { state: this.store.writeState(state), message: 'Lot removed' };
+    return { state: await this.store.writeStateAsync(state), message: 'Lot removed' };
   }
 }

@@ -48,8 +48,8 @@ function autoProxy(lot, skipUser, messages) {
 
 export class AuctionService {
   constructor(store) { this.store = store; }
-  publicState() {
-    const state = this.store.readState();
+  async publicState() {
+    const state = await this.store.readStateAsync();
     return { ...state, audit: undefined };
   }
   users() { return users.map(publicUser); }
@@ -58,10 +58,10 @@ export class AuctionService {
     if (!user) return null;
     return publicUser(user);
   }
-  reset() { return this.store.resetState(); }
-  placeBid(user, { lotId, amount }) {
+  async reset() { return this.store.resetStateAsync(); }
+  async placeBid(user, { lotId, amount }) {
     const bidAmount = Number(amount);
-    const state = this.store.readState(); const lot = state.lots.find(l => l.id === lotId);
+    const state = await this.store.readStateAsync(); const lot = state.lots.find(l => l.id === lotId);
     if (!lot) throw Object.assign(new Error('Lot not found'), { status: 404 });
     if (Date.now() > lot.endAt) throw Object.assign(new Error('Auction ended'), { status: 400 });
     const min = lot.current + lot.increment;
@@ -75,11 +75,11 @@ export class AuctionService {
     if (lot.endAt - Date.now() < 3 * 60 * 1000) { lot.endAt += 60 * 1000; messages.push('Anti-snipe: auction extended by 1 minute'); }
     if (bidAmount >= previous * 1.5) { lot.suspicious = true; messages.push('Manager alert: suspicious bid jump flagged'); }
     autoProxy(lot, user.username, messages);
-    this.store.writeState(state); return { state, message: messages.join(' • ') };
+    await this.store.writeStateAsync(state); return { state, message: messages.join(' • ') };
   }
-  saveProxy(user, { lotId, max }) {
+  async saveProxy(user, { lotId, max }) {
     const maxAmount = Number(max);
-    const state = this.store.readState(); const lot = state.lots.find(l => l.id === lotId);
+    const state = await this.store.readStateAsync(); const lot = state.lots.find(l => l.id === lotId);
     if (!lot) throw Object.assign(new Error('Lot not found'), { status: 404 });
     const min = lot.current + lot.increment;
     if (!Number.isFinite(maxAmount) || maxAmount < min) throw Object.assign(new Error(`Proxy max must be at least ${money(min)}`), { status: 400 });
@@ -92,14 +92,14 @@ export class AuctionService {
       lot.bids.unshift({ user: user.username, name: user.name, amount: lot.current, at: Date.now(), type: 'proxy_auto' });
       messages.push(`Proxy placed current bid at ${money(lot.current)}`);
     }
-    this.store.writeState(state); return { state, message: messages.join(' • ') };
+    await this.store.writeStateAsync(state); return { state, message: messages.join(' • ') };
   }
-  requestBuyNow(user, { lotId }) {
-    const state = this.store.readState(); const lot = state.lots.find(l => l.id === lotId);
+  async requestBuyNow(user, { lotId }) {
+    const state = await this.store.readStateAsync(); const lot = state.lots.find(l => l.id === lotId);
     if (!lot) throw Object.assign(new Error('Lot not found'), { status: 404 });
     lot.buyRequested = true;
     lot.buyRequests = [...(lot.buyRequests || []), { user: user.username, at: Date.now(), price: lot.buyNow }];
     audit(state, user.username, 'buy_now.requested', { lotId: lot.id, price: lot.buyNow });
-    this.store.writeState(state); return { state, message: 'Buy Now request sent to manager. Auction stays live.' };
+    await this.store.writeStateAsync(state); return { state, message: 'Buy Now request sent to manager. Auction stays live.' };
   }
 }

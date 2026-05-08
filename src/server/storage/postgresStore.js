@@ -126,13 +126,12 @@ export class PostgresAuctionStore {
     }
   }
 
-  readState() {
-    throw new Error('PostgreSQL readState requires async service support. Use readStateAsync() when STORAGE_DRIVER=postgres; JSON remains the default runtime store.');
-  }
   writeState() {
     throw new Error('PostgreSQL mutations are not implemented yet. Keep STORAGE_DRIVER=json until adapter parity is complete.');
   }
+  async writeStateAsync() { return this.writeState(); }
   resetState() {
     throw new Error('PostgreSQL reset is not implemented yet. Use db:seed-demo for seeded databases.');
   }
+  async resetStateAsync() { return this.resetState(); }
 }
