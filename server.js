@@ -12,10 +12,10 @@ const STATE_FILE = path.join(DATA_DIR, 'state.json');
 
 app.use(express.json());
 
-const users = Array.from({ length: 10 }, (_, i) => ({
+const users = Array.from({ length: 5 }, (_, i) => ({
   username: `user${i + 1}`,
   password: `pass${i + 1}`,
-  name: `User ${i + 1}`,
+  name: `Demo Bidder ${i + 1}`,
   limit: 250000 + i * 25000,
 }));
 
