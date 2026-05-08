@@ -77,7 +77,7 @@ export class PostgresAuctionStore {
     try {
       const lotsResult = await client.query(`
         SELECT slug, brand, model, equipment_type, manufacture_year, usage_label, location,
-               current_bid_amount, bid_increment_amount, buy_now_amount, ends_at,
+               status, current_bid_amount, bid_increment_amount, buy_now_amount, ends_at,
                image_key, ui_accent, ui_shape, suspicious, created_at, updated_at
         FROM lots
         WHERE status IN ('scheduled', 'live', 'ended', 'pending_approval', 'approved')
@@ -140,6 +140,7 @@ export class PostgresAuctionStore {
           location: row.location,
           year: row.manufacture_year,
           hours: row.usage_label || '—',
+          status: row.status,
           current: num(row.current_bid_amount),
           increment: num(row.bid_increment_amount, 100),
           buyNow: num(row.buy_now_amount),
@@ -184,11 +185,12 @@ export class PostgresAuctionStore {
     try {
       await client.query('BEGIN');
       const lot = (await client.query(`
-        SELECT id, slug, current_bid_amount, bid_increment_amount, ends_at, anti_snipe_window_seconds,
+        SELECT id, slug, status, current_bid_amount, bid_increment_amount, ends_at, anti_snipe_window_seconds,
                anti_snipe_extend_seconds, suspicious
         FROM lots WHERE slug = $1 FOR UPDATE
       `, [lotId])).rows[0];
       if (!lot) throw httpError('Lot not found', 404);
+      if (lot.status !== 'live') throw httpError('Auction is not live', 400);
       if (Date.now() > time(lot.ends_at)) throw httpError('Auction ended', 400);
       const current = num(lot.current_bid_amount);
       const increment = num(lot.bid_increment_amount, 100);
@@ -238,8 +240,9 @@ export class PostgresAuctionStore {
     const client = await this.pool.connect();
     try {
       await client.query('BEGIN');
-      const lot = (await client.query(`SELECT id, current_bid_amount, bid_increment_amount FROM lots WHERE slug=$1 FOR UPDATE`, [lotId])).rows[0];
+      const lot = (await client.query(`SELECT id, status, current_bid_amount, bid_increment_amount FROM lots WHERE slug=$1 FOR UPDATE`, [lotId])).rows[0];
       if (!lot) throw httpError('Lot not found', 404);
+      if (lot.status !== 'live') throw httpError('Auction is not live', 400);
       const min = num(lot.current_bid_amount) + num(lot.bid_increment_amount, 100);
       if (!Number.isFinite(maxAmount) || maxAmount < min) throw httpError(`Proxy max must be at least ${money(min)}`, 400);
       if (maxAmount > user.limit) throw httpError(`${user.username}'s bid ceiling is ${money(user.limit)}`, 400);
@@ -273,8 +276,9 @@ export class PostgresAuctionStore {
     const client = await this.pool.connect();
     try {
       await client.query('BEGIN');
-      const lot = (await client.query(`SELECT id, buy_now_amount FROM lots WHERE slug=$1 FOR UPDATE`, [lotId])).rows[0];
+      const lot = (await client.query(`SELECT id, status, buy_now_amount FROM lots WHERE slug=$1 FOR UPDATE`, [lotId])).rows[0];
       if (!lot) throw httpError('Lot not found', 404);
+      if (lot.status !== 'live') throw httpError('Auction is not live', 400);
       const userId = await this.userIdForClient(client, user.username);
       if (!userId) throw httpError('Bidder not found', 401);
       await client.query(`INSERT INTO buy_now_requests (lot_id, user_id, price_amount, status) VALUES ($1,$2,$3,'pending')`, [lot.id, userId, num(lot.buy_now_amount)]);
@@ -368,17 +372,20 @@ export class PostgresAuctionStore {
     }
   }
 
-  async adminRemoveLotTx(slug) {
+  async adminSetLotStatusTx(slug, status) {
     const client = await this.pool.connect();
     try {
       await client.query('BEGIN');
-      const lot = (await client.query(`SELECT id, model FROM lots WHERE slug=$1 FOR UPDATE`, [slug])).rows[0];
-      if (lot) {
-        await client.query(`UPDATE lots SET status='cancelled', updated_at=now() WHERE id=$1`, [lot.id]);
-        await client.query(`INSERT INTO audit_events (actor_type, action, entity_type, entity_id, detail) VALUES ('admin','lot.removed','lot',$1,$2)`, [lot.id, { lotId: slug, model: lot.model }]);
-      }
+      const lot = (await client.query(`SELECT id, model, ends_at FROM lots WHERE slug=$1 FOR UPDATE`, [slug])).rows[0];
+      if (!lot) throw httpError('Lot not found', 404);
+      const fields = ['status=$1', 'updated_at=now()'];
+      const values = [status, lot.id];
+      if (['ended', 'pending_approval', 'approved', 'cancelled'].includes(status)) fields.push('ends_at=LEAST(COALESCE(ends_at, now()), now())');
+      if (status === 'live' && time(lot.ends_at) <= Date.now()) fields.push(`ends_at=now() + interval '1 hour'`);
+      await client.query(`UPDATE lots SET ${fields.join(', ')} WHERE id=$2`, values);
+      await client.query(`INSERT INTO audit_events (actor_type, action, entity_type, entity_id, detail) VALUES ('admin','lot.status_changed','lot',$1,$2)`, [lot.id, { lotId: slug, model: lot.model, status }]);
       await client.query('COMMIT');
-      return { state: await this.readStateAsync(), message: 'Lot removed' };
+      return { state: await this.readStateAsync(), message: `Lot moved to ${status.replace('_', ' ')}` };
     } catch (e) {
       await client.query('ROLLBACK');
       throw e;
@@ -387,12 +394,16 @@ export class PostgresAuctionStore {
     }
   }
 
+  async adminRemoveLotTx(slug) {
+    return this.adminSetLotStatusTx(slug, 'cancelled');
+  }
+
   async writeStateAsync(state) {
     const client = await this.pool.connect();
     try {
       await client.query('BEGIN');
       for (const lot of state.lots || []) {
-        const status = Date.now() > Number(lot.endAt) ? 'ended' : 'live';
+        const status = lot.status || (Date.now() > Number(lot.endAt) ? 'ended' : 'live');
         const lotResult = await client.query(`
           INSERT INTO lots (
             slug, brand, model, equipment_type, manufacture_year, usage_label, location, status,

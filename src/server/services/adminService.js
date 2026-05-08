@@ -28,12 +28,19 @@ export class AdminService {
     audit(state, 'admin', existingIndex >= 0 ? 'lot.updated' : 'lot.added', { lotId: lot.id, model: lot.model });
     return { state: await this.store.writeStateAsync(state), message: existingIndex >= 0 ? 'Lot updated' : 'Lot added' };
   }
+  async setLotStatus(id, status) {
+    if (this.store.adminSetLotStatusTx) return this.store.adminSetLotStatusTx(id, status);
+    const state = await this.store.readStateAsync();
+    const lot = state.lots.find(l => l.id === id);
+    if (!lot) throw Object.assign(new Error('Lot not found'), { status: 404 });
+    lot.status = status;
+    if (status === 'live' && Date.now() > Number(lot.endAt || 0)) lot.endAt = Date.now() + hour;
+    if (status === 'ended' || status === 'pending_approval' || status === 'approved' || status === 'cancelled') lot.endAt = Math.min(Number(lot.endAt || Date.now()), Date.now());
+    audit(state, 'admin', 'lot.status_changed', { lotId: id, status });
+    return { state: await this.store.writeStateAsync(state), message: `Lot moved to ${status.replace('_', ' ')}` };
+  }
   async removeLot(id) {
     if (this.store.adminRemoveLotTx) return this.store.adminRemoveLotTx(id);
-    const state = await this.store.readStateAsync();
-    const removed = state.lots.find(l => l.id === id);
-    state.lots = state.lots.filter(l => l.id !== id);
-    audit(state, 'admin', 'lot.removed', { lotId: id, model: removed?.model });
-    return { state: await this.store.writeStateAsync(state), message: 'Lot removed' };
+    return this.setLotStatus(id, 'cancelled');
   }
 }

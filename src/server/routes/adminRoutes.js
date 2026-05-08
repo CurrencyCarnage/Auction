@@ -1,7 +1,7 @@
 import express from 'express';
 import { authAdmin } from '../auth/demoAuth.js';
 import { createToken } from '../auth/session.js';
-import { hoursSchema, loginSchema, lotSchema, parseBody } from '../validation/schemas.js';
+import { hoursSchema, loginSchema, lotSchema, lotStatusSchema, parseBody } from '../validation/schemas.js';
 
 function requireAdmin(req, res, config, roles = []) {
   const admin = authAdmin(req, config);
@@ -40,6 +40,11 @@ export function adminRoutes({ adminService, config }) {
     if (!requireAdmin(req, res, config, ['representative', 'manager', 'super_admin'])) return;
     const body = parseBody(lotSchema, req, res); if (!body) return;
     return handle(res, async () => res.json(await adminService.saveLot(body)));
+  });
+  router.patch('/lot/:id/status', async (req, res) => {
+    if (!requireAdmin(req, res, config, ['manager', 'super_admin'])) return;
+    const body = parseBody(lotStatusSchema, req, res); if (!body) return;
+    return handle(res, async () => res.json(await adminService.setLotStatus(req.params.id, body.status)));
   });
   router.delete('/lot/:id', async (req, res) => {
     if (!requireAdmin(req, res, config, ['manager', 'super_admin'])) return;

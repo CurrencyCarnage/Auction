@@ -24,6 +24,7 @@ export function normalizeLot(input, existing = {}) {
     current: Number(input.current || existing.current || 0),
     endAt: Number.isFinite(endAt) ? endAt : now + 8 * hour,
     imageKey: input.imageKey || existing.imageKey || existing.id || 'shacman-x3000',
+    status: input.status || existing.status || 'live',
     accent: existing.accent || '#56B461',
     shape: existing.shape || 'truck',
     buyRequested: Boolean(input.buyRequested ?? existing.buyRequested ?? false),
@@ -50,7 +51,7 @@ export class AuctionService {
   constructor(store) { this.store = store; }
   async publicState() {
     const state = await this.store.readStateAsync();
-    return { ...state, audit: undefined };
+    return { ...state, lots: (state.lots || []).filter(l => l.status !== 'cancelled'), audit: undefined };
   }
   users() { return users.map(publicUser); }
   async login(username, password) {
@@ -65,6 +66,7 @@ export class AuctionService {
     const bidAmount = Number(amount);
     const state = await this.store.readStateAsync(); const lot = state.lots.find(l => l.id === lotId);
     if (!lot) throw Object.assign(new Error('Lot not found'), { status: 404 });
+    if ((lot.status || 'live') !== 'live') throw Object.assign(new Error('Auction is not live'), { status: 400 });
     if (Date.now() > lot.endAt) throw Object.assign(new Error('Auction ended'), { status: 400 });
     const min = lot.current + lot.increment;
     if (!Number.isFinite(bidAmount) || bidAmount < min) throw Object.assign(new Error(`Minimum next bid is ${money(min)}`), { status: 400 });
@@ -84,6 +86,7 @@ export class AuctionService {
     const maxAmount = Number(max);
     const state = await this.store.readStateAsync(); const lot = state.lots.find(l => l.id === lotId);
     if (!lot) throw Object.assign(new Error('Lot not found'), { status: 404 });
+    if ((lot.status || 'live') !== 'live') throw Object.assign(new Error('Auction is not live'), { status: 400 });
     const min = lot.current + lot.increment;
     if (!Number.isFinite(maxAmount) || maxAmount < min) throw Object.assign(new Error(`Proxy max must be at least ${money(min)}`), { status: 400 });
     if (maxAmount > user.limit) throw Object.assign(new Error(`${user.username}'s bid ceiling is ${money(user.limit)}`), { status: 400 });
@@ -101,6 +104,7 @@ export class AuctionService {
     if (this.store.requestBuyNowTx) return this.store.requestBuyNowTx(user, { lotId });
     const state = await this.store.readStateAsync(); const lot = state.lots.find(l => l.id === lotId);
     if (!lot) throw Object.assign(new Error('Lot not found'), { status: 404 });
+    if ((lot.status || 'live') !== 'live') throw Object.assign(new Error('Auction is not live'), { status: 400 });
     lot.buyRequested = true;
     lot.buyRequests = [...(lot.buyRequests || []), { user: user.username, at: Date.now(), price: lot.buyNow }];
     audit(state, user.username, 'buy_now.requested', { lotId: lot.id, price: lot.buyNow });

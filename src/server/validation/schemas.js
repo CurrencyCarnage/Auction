@@ -27,6 +27,7 @@ export const lotSchema = z.object({
   imageKey: z.string().trim().max(120).optional(),
   buyRequested: z.boolean().optional(),
 });
+export const lotStatusSchema = z.object({ status: z.enum(['draft', 'scheduled', 'live', 'ended', 'pending_approval', 'approved', 'cancelled']) });
 export const bidSchema = z.object({ lotId: z.string().trim().min(1).max(120), amount: z.coerce.number().positive().max(100000000) });
 export const proxySchema = z.object({ lotId: z.string().trim().min(1).max(120), max: z.coerce.number().positive().max(100000000) });
 export const lotIdSchema = z.object({ lotId: z.string().trim().min(1).max(120) });

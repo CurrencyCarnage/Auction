@@ -39,11 +39,15 @@ assert(afterProxy.bids[0].type === 'proxy_auto' || afterProxy.current > bid2Amou
 await request('/api/admin/open-hours', { method: 'POST', headers: adminHeaders, body: JSON.stringify({ hours: 1 }) });
 const added = await request('/api/admin/lot', { method: 'POST', headers: adminHeaders, body: JSON.stringify({ id: 'behavior-test-lot', brand: 'CASE', model: 'Behavior Test Lot', type: 'Loader', location: 'Tbilisi', year: 2024, hours: '1 h', current: 1000, increment: 500, buyNow: 5000, imageKey: 'case-580st' }) });
 assert(added.state.lots.some(l => l.id === 'behavior-test-lot'), 'admin should add lot');
+const statusChanged = await request('/api/admin/lot/behavior-test-lot/status', { method: 'PATCH', headers: adminHeaders, body: JSON.stringify({ status: 'pending_approval' }) });
+assert(statusChanged.state.lots.find(l => l.id === 'behavior-test-lot').status === 'pending_approval', 'admin should move lot into review status');
+await request('/api/bid', { method: 'POST', headers: bidderHeaders, body: JSON.stringify({ lotId: 'behavior-test-lot', amount: 1500 }) }, 400);
 const removed = await request('/api/admin/lot/behavior-test-lot', { method: 'DELETE', headers: adminHeaders });
-assert(!removed.state.lots.some(l => l.id === 'behavior-test-lot'), 'admin should remove lot');
+assert(!removed.state.lots.some(l => l.id === 'behavior-test-lot' && l.status !== 'cancelled'), 'admin should remove or cancel lot');
 
 const audit = await request('/api/admin/audit', { headers: adminHeaders });
 assert(audit.audit.some(e => e.action === 'bid.placed'), 'audit should include bid.placed');
 assert(audit.audit.some(e => e.action === 'lot.added' || e.action === 'lot.updated'), 'audit should include lot add/update');
+assert(audit.audit.some(e => e.action === 'lot.status_changed'), 'audit should include status changes');
 
 console.log('Behavior test passed');
