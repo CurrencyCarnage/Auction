@@ -9,18 +9,13 @@ The app now has a PostgreSQL storage adapter behind `STORAGE_DRIVER=postgres`, b
 - `resetStateAsync()` reseeds using the existing demo seed state.
 - Demo seed tooling exists: `npm run db:seed-demo`.
 - Migrations exist under `migrations/`.
+- Transaction-shaped bidder commands exist:
+  - `placeBidTx(user, bid)` locks the lot row with `SELECT ... FOR UPDATE`, validates price/window/limit, inserts bid/audit rows, updates the lot, and applies proxy auto-bid logic.
+  - `saveProxyTx(user, proxy)` locks the lot row, validates max bid, upserts proxy config, optionally places the leading proxy bid, and audits it.
+  - `requestBuyNowTx(user, request)` locks the lot row, inserts a pending request, and audits it.
 
 ## Important caveat
 
-`writeStateAsync()` is a parity bridge, not the final production bidding engine. It persists the current state snapshot transactionally, but it still follows the demo service behavior where the service mutates an in-memory state object and then writes it.
+`writeStateAsync()` is still a parity bridge for admin/demo snapshot persistence. Bidder-facing Postgres commands are now transaction-shaped, but they still need integration testing against a real Postgres database before enabling `STORAGE_DRIVER=postgres` anywhere public.
 
-For real auctions, the next step is dedicated transactional command methods such as:
-
-- `placeBidTx(user, bid)`
-- `saveProxyBidTx(user, proxy)`
-- `requestBuyNowTx(user, request)`
-- `adminSaveLotTx(admin, lot)`
-
-`placeBidTx` must lock the lot row with `SELECT ... FOR UPDATE`, validate current price/time/window, insert immutable bid rows, update the lot, insert audit events, and commit atomically.
-
-Until that is done, keep production deployment on JSON/demo mode or use Postgres only for staging tests.
+Next production step: implement dedicated admin transaction methods (`adminSaveLotTx`, `adminRemoveLotTx`, `adminOpenLotsTx`) and run the full test suite against a real staging database.

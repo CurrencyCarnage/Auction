@@ -60,6 +60,7 @@ export class AuctionService {
   }
   async reset() { return this.store.resetStateAsync(); }
   async placeBid(user, { lotId, amount }) {
+    if (this.store.placeBidTx) return this.store.placeBidTx(user, { lotId, amount });
     const bidAmount = Number(amount);
     const state = await this.store.readStateAsync(); const lot = state.lots.find(l => l.id === lotId);
     if (!lot) throw Object.assign(new Error('Lot not found'), { status: 404 });
@@ -78,6 +79,7 @@ export class AuctionService {
     await this.store.writeStateAsync(state); return { state, message: messages.join(' • ') };
   }
   async saveProxy(user, { lotId, max }) {
+    if (this.store.saveProxyTx) return this.store.saveProxyTx(user, { lotId, max });
     const maxAmount = Number(max);
     const state = await this.store.readStateAsync(); const lot = state.lots.find(l => l.id === lotId);
     if (!lot) throw Object.assign(new Error('Lot not found'), { status: 404 });
@@ -95,6 +97,7 @@ export class AuctionService {
     await this.store.writeStateAsync(state); return { state, message: messages.join(' • ') };
   }
   async requestBuyNow(user, { lotId }) {
+    if (this.store.requestBuyNowTx) return this.store.requestBuyNowTx(user, { lotId });
     const state = await this.store.readStateAsync(); const lot = state.lots.find(l => l.id === lotId);
     if (!lot) throw Object.assign(new Error('Lot not found'), { status: 404 });
     lot.buyRequested = true;

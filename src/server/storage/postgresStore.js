@@ -30,6 +30,10 @@ function publicBid(row) {
     type: row.kind,
   };
 }
+function httpError(message, status = 400) {
+  return Object.assign(new Error(message), { status });
+}
+function money(n) { return '₾' + Math.round(n).toLocaleString('en-US'); }
 
 export class PostgresAuctionStore {
   constructor(config) {
@@ -134,6 +138,123 @@ export class PostgresAuctionStore {
           detail: row.detail || {},
         })),
       };
+    } finally {
+      client.release();
+    }
+  }
+
+  async userIdForClient(client, username) {
+    const email = emailForUser(username);
+    if (!email) return null;
+    return (await client.query('SELECT id FROM users WHERE email = $1', [email])).rows[0]?.id || null;
+  }
+
+  async placeBidTx(user, { lotId, amount }) {
+    const bidAmount = Number(amount);
+    const client = await this.pool.connect();
+    try {
+      await client.query('BEGIN');
+      const lot = (await client.query(`
+        SELECT id, slug, current_bid_amount, bid_increment_amount, ends_at, anti_snipe_window_seconds,
+               anti_snipe_extend_seconds, suspicious
+        FROM lots WHERE slug = $1 FOR UPDATE
+      `, [lotId])).rows[0];
+      if (!lot) throw httpError('Lot not found', 404);
+      if (Date.now() > time(lot.ends_at)) throw httpError('Auction ended', 400);
+      const current = num(lot.current_bid_amount);
+      const increment = num(lot.bid_increment_amount, 100);
+      const min = current + increment;
+      if (!Number.isFinite(bidAmount) || bidAmount < min) throw httpError(`Minimum next bid is ${money(min)}`, 400);
+      if (bidAmount > user.limit) throw httpError(`${user.username}'s bid ceiling is ${money(user.limit)}`, 400);
+      const userId = await this.userIdForClient(client, user.username);
+      if (!userId) throw httpError('Bidder not found', 401);
+      await client.query(`INSERT INTO bids (lot_id, user_id, amount, kind, status) VALUES ($1,$2,$3,'manual','valid')`, [lot.id, userId, bidAmount]);
+      const suspicious = bidAmount >= current * 1.5 || Boolean(lot.suspicious);
+      let endAt = time(lot.ends_at);
+      const messages = [`Bid placed by ${user.username}: ${money(bidAmount)}`];
+      if (endAt - Date.now() < num(lot.anti_snipe_window_seconds, 180) * 1000) {
+        endAt += num(lot.anti_snipe_extend_seconds, 60) * 1000;
+        messages.push('Anti-snipe: auction extended by 1 minute');
+      }
+      if (suspicious && bidAmount >= current * 1.5) messages.push('Manager alert: suspicious bid jump flagged');
+      await client.query(`UPDATE lots SET current_bid_amount=$1, suspicious=$2, ends_at=$3, updated_at=now() WHERE id=$4`, [bidAmount, suspicious, date(endAt), lot.id]);
+      await client.query(`INSERT INTO audit_events (actor_type, action, entity_type, entity_id, detail) VALUES ($1,'bid.placed','lot',$2,$3)`, [user.username, lot.id, { lotId, amount: bidAmount }]);
+
+      const proxy = (await client.query(`
+        SELECT proxy_bids.max_amount, users.id AS user_id, users.email, users.display_name
+        FROM proxy_bids
+        JOIN users ON users.id = proxy_bids.user_id
+        WHERE proxy_bids.lot_id = $1 AND proxy_bids.status = 'active' AND users.email <> $2 AND proxy_bids.max_amount >= $3
+        ORDER BY proxy_bids.max_amount DESC, proxy_bids.created_at ASC
+        LIMIT 1
+      `, [lot.id, emailForUser(user.username), bidAmount + increment])).rows[0];
+      if (proxy) {
+        const proxyBid = Math.min(num(proxy.max_amount), bidAmount + increment);
+        await client.query(`INSERT INTO bids (lot_id, user_id, amount, kind, status) VALUES ($1,$2,$3,'proxy_auto','valid')`, [lot.id, proxy.user_id, proxyBid]);
+        await client.query(`UPDATE lots SET current_bid_amount=$1, updated_at=now() WHERE id=$2`, [proxyBid, lot.id]);
+        messages.push(`Outbid by ${usernameFromEmail(proxy.email)}'s proxy at ${money(proxyBid)}`);
+      }
+      await client.query('COMMIT');
+      return { state: await this.readStateAsync(), message: messages.join(' • ') };
+    } catch (e) {
+      await client.query('ROLLBACK');
+      throw e;
+    } finally {
+      client.release();
+    }
+  }
+
+  async saveProxyTx(user, { lotId, max }) {
+    const maxAmount = Number(max);
+    const client = await this.pool.connect();
+    try {
+      await client.query('BEGIN');
+      const lot = (await client.query(`SELECT id, current_bid_amount, bid_increment_amount FROM lots WHERE slug=$1 FOR UPDATE`, [lotId])).rows[0];
+      if (!lot) throw httpError('Lot not found', 404);
+      const min = num(lot.current_bid_amount) + num(lot.bid_increment_amount, 100);
+      if (!Number.isFinite(maxAmount) || maxAmount < min) throw httpError(`Proxy max must be at least ${money(min)}`, 400);
+      if (maxAmount > user.limit) throw httpError(`${user.username}'s bid ceiling is ${money(user.limit)}`, 400);
+      const userId = await this.userIdForClient(client, user.username);
+      if (!userId) throw httpError('Bidder not found', 401);
+      await client.query(`
+        INSERT INTO proxy_bids (lot_id, user_id, max_amount, status)
+        VALUES ($1,$2,$3,'active')
+        ON CONFLICT (lot_id, user_id) DO UPDATE SET max_amount=EXCLUDED.max_amount, status='active', updated_at=now()
+      `, [lot.id, userId, maxAmount]);
+      await client.query(`INSERT INTO audit_events (actor_type, action, entity_type, entity_id, detail) VALUES ($1,'proxy.saved','lot',$2,$3)`, [user.username, lot.id, { lotId, max: maxAmount }]);
+      const messages = [`${user.username}'s proxy saved up to ${money(maxAmount)}`];
+      const leader = (await client.query(`SELECT user_id FROM bids WHERE lot_id=$1 AND status='valid' ORDER BY amount DESC, created_at ASC LIMIT 1`, [lot.id])).rows[0];
+      if (leader?.user_id !== userId && num(lot.current_bid_amount) + num(lot.bid_increment_amount, 100) <= maxAmount) {
+        const proxyBid = num(lot.current_bid_amount) + num(lot.bid_increment_amount, 100);
+        await client.query(`INSERT INTO bids (lot_id, user_id, amount, kind, status) VALUES ($1,$2,$3,'proxy_auto','valid')`, [lot.id, userId, proxyBid]);
+        await client.query(`UPDATE lots SET current_bid_amount=$1, updated_at=now() WHERE id=$2`, [proxyBid, lot.id]);
+        messages.push(`Proxy placed current bid at ${money(proxyBid)}`);
+      }
+      await client.query('COMMIT');
+      return { state: await this.readStateAsync(), message: messages.join(' • ') };
+    } catch (e) {
+      await client.query('ROLLBACK');
+      throw e;
+    } finally {
+      client.release();
+    }
+  }
+
+  async requestBuyNowTx(user, { lotId }) {
+    const client = await this.pool.connect();
+    try {
+      await client.query('BEGIN');
+      const lot = (await client.query(`SELECT id, buy_now_amount FROM lots WHERE slug=$1 FOR UPDATE`, [lotId])).rows[0];
+      if (!lot) throw httpError('Lot not found', 404);
+      const userId = await this.userIdForClient(client, user.username);
+      if (!userId) throw httpError('Bidder not found', 401);
+      await client.query(`INSERT INTO buy_now_requests (lot_id, user_id, price_amount, status) VALUES ($1,$2,$3,'pending')`, [lot.id, userId, num(lot.buy_now_amount)]);
+      await client.query(`INSERT INTO audit_events (actor_type, action, entity_type, entity_id, detail) VALUES ($1,'buy_now.requested','lot',$2,$3)`, [user.username, lot.id, { lotId, price: num(lot.buy_now_amount) }]);
+      await client.query('COMMIT');
+      return { state: await this.readStateAsync(), message: 'Buy Now request sent to manager. Auction stays live.' };
+    } catch (e) {
+      await client.query('ROLLBACK');
+      throw e;
     } finally {
       client.release();
     }
