@@ -13,5 +13,7 @@ export function authBidder(req, config) {
 export function authAdmin(req, config) {
   const bearer = String(req.headers.authorization || '').replace(/^Bearer\s+/i, '');
   const token = req.headers['x-admin-token'] || bearer;
+  const payload = verifyToken(token, config?.sessionSecret);
+  if (payload?.type === 'admin' && payload?.username === config.adminUsername) return true;
   return Boolean(token && token === config.adminSessionToken);
 }

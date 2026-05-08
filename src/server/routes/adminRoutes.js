@@ -1,5 +1,6 @@
 import express from 'express';
 import { authAdmin } from '../auth/demoAuth.js';
+import { createToken } from '../auth/session.js';
 import { hoursSchema, loginSchema, lotSchema, parseBody } from '../validation/schemas.js';
 
 function requireAdmin(req, res, config) {
@@ -19,7 +20,7 @@ export function adminRoutes({ adminService, config }) {
   router.post('/login', (req, res) => {
     const body = parseBody(loginSchema, req, res); if (!body) return;
     if (body.username !== config.adminUsername || body.password !== config.adminPassword) return res.status(401).json({ error: 'Wrong admin username or password' });
-    res.json({ admin: { username: config.adminUsername, token: config.adminSessionToken } });
+    res.json({ admin: { username: config.adminUsername, token: createToken({ type: 'admin', username: config.adminUsername }, config.sessionSecret) } });
   });
   router.post('/open-hours', async (req, res) => {
     if (!requireAdmin(req, res, config)) return;
