@@ -28,6 +28,7 @@ jobs:
           cat /tmp/auction-server.log
           exit 1
       - run: npm run smoke
+      - run: npm run test:behavior
       - name: Server logs
         if: always()
         run: cat /tmp/auction-server.log || true
