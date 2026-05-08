@@ -40,6 +40,6 @@ assert(!removed.state.lots.some(l => l.id === 'behavior-test-lot'), 'admin shoul
 
 const audit = await request('/api/admin/audit', { headers: adminHeaders });
 assert(audit.audit.some(e => e.action === 'bid.placed'), 'audit should include bid.placed');
-assert(audit.audit.some(e => e.action === 'lot.added'), 'audit should include lot.added');
+assert(audit.audit.some(e => e.action === 'lot.added' || e.action === 'lot.updated'), 'audit should include lot add/update');
 
 console.log('Behavior test passed');

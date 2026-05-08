@@ -64,7 +64,7 @@ async function run() {
 
     await client.query(`
       INSERT INTO audit_events (actor_type, action, detail)
-      VALUES ('system', 'demo.seeded', jsonb_build_object('lots', $1, 'users', $2))
+      VALUES ('system', 'demo.seeded', jsonb_build_object('lots', $1::int, 'users', $2::int))
     `, [seedLots.length, users.length]);
     await client.query('COMMIT');
     console.log(`Seeded demo data: ${seedLots.length} lots, ${users.length} users`);

@@ -44,46 +44,44 @@ export class PostgresAuctionStore {
   async readStateAsync() {
     const client = await this.pool.connect();
     try {
-      const [lotsResult, bidsResult, proxyResult, buyNowResult, auditResult] = await Promise.all([
-        client.query(`
-          SELECT slug, brand, model, equipment_type, manufacture_year, usage_label, location,
-                 current_bid_amount, bid_increment_amount, buy_now_amount, ends_at,
-                 image_key, ui_accent, ui_shape, suspicious, created_at, updated_at
-          FROM lots
-          WHERE status IN ('scheduled', 'live', 'ended', 'pending_approval', 'approved')
-          ORDER BY COALESCE(ends_at, created_at), created_at
-        `),
-        client.query(`
-          SELECT lots.slug AS lot_slug, bids.amount, bids.kind, bids.created_at AS bid_created_at,
-                 users.email AS bid_user, users.display_name AS bidder_name
-          FROM bids
-          JOIN lots ON lots.id = bids.lot_id
-          LEFT JOIN users ON users.id = bids.user_id
-          WHERE bids.status = 'valid'
-          ORDER BY bids.created_at DESC
-        `),
-        client.query(`
-          SELECT lots.slug AS lot_slug, users.email AS bid_user, proxy_bids.max_amount
-          FROM proxy_bids
-          JOIN lots ON lots.id = proxy_bids.lot_id
-          JOIN users ON users.id = proxy_bids.user_id
-          WHERE proxy_bids.status = 'active'
-        `),
-        client.query(`
-          SELECT lots.slug AS lot_slug, users.email AS bid_user, buy_now_requests.price_amount, buy_now_requests.created_at
-          FROM buy_now_requests
-          JOIN lots ON lots.id = buy_now_requests.lot_id
-          JOIN users ON users.id = buy_now_requests.user_id
-          WHERE buy_now_requests.status = 'pending'
-          ORDER BY buy_now_requests.created_at DESC
-        `),
-        client.query(`
-          SELECT actor_type, action, detail, created_at
-          FROM audit_events
-          ORDER BY created_at DESC
-          LIMIT 500
-        `),
-      ]);
+      const lotsResult = await client.query(`
+        SELECT slug, brand, model, equipment_type, manufacture_year, usage_label, location,
+               current_bid_amount, bid_increment_amount, buy_now_amount, ends_at,
+               image_key, ui_accent, ui_shape, suspicious, created_at, updated_at
+        FROM lots
+        WHERE status IN ('scheduled', 'live', 'ended', 'pending_approval', 'approved')
+        ORDER BY COALESCE(ends_at, created_at), created_at
+      `);
+      const bidsResult = await client.query(`
+        SELECT lots.slug AS lot_slug, bids.amount, bids.kind, bids.created_at AS bid_created_at,
+               users.email AS bid_user, users.display_name AS bidder_name
+        FROM bids
+        JOIN lots ON lots.id = bids.lot_id
+        LEFT JOIN users ON users.id = bids.user_id
+        WHERE bids.status = 'valid'
+        ORDER BY bids.created_at DESC
+      `);
+      const proxyResult = await client.query(`
+        SELECT lots.slug AS lot_slug, users.email AS bid_user, proxy_bids.max_amount
+        FROM proxy_bids
+        JOIN lots ON lots.id = proxy_bids.lot_id
+        JOIN users ON users.id = proxy_bids.user_id
+        WHERE proxy_bids.status = 'active'
+      `);
+      const buyNowResult = await client.query(`
+        SELECT lots.slug AS lot_slug, users.email AS bid_user, buy_now_requests.price_amount, buy_now_requests.created_at
+        FROM buy_now_requests
+        JOIN lots ON lots.id = buy_now_requests.lot_id
+        JOIN users ON users.id = buy_now_requests.user_id
+        WHERE buy_now_requests.status = 'pending'
+        ORDER BY buy_now_requests.created_at DESC
+      `);
+      const auditResult = await client.query(`
+        SELECT actor_type, action, detail, created_at
+        FROM audit_events
+        ORDER BY created_at DESC
+        LIMIT 500
+      `);
 
       const bidsByLot = new Map();
       for (const row of bidsResult.rows) {
