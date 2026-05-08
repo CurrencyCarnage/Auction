@@ -16,11 +16,18 @@ export function createToken(payload, secret, ttlMs = 24 * 60 * 60 * 1000) {
 }
 
 export function verifyToken(token, secret) {
-  if (!token || !secret || !String(token).includes('.')) return null;
-  const [body, sig] = String(token).split('.');
-  const expected = signPayload(body, secret);
-  if (!crypto.timingSafeEqual(Buffer.from(sig), Buffer.from(expected))) return null;
-  const payload = JSON.parse(unb64url(body));
-  if (payload.exp && Date.now() > payload.exp) return null;
-  return payload;
+  try {
+    if (!token || !secret || !String(token).includes('.')) return null;
+    const [body, sig] = String(token).split('.');
+    const expected = signPayload(body, secret);
+    const sigBuffer = Buffer.from(sig || '');
+    const expectedBuffer = Buffer.from(expected);
+    if (sigBuffer.length !== expectedBuffer.length) return null;
+    if (!crypto.timingSafeEqual(sigBuffer, expectedBuffer)) return null;
+    const payload = JSON.parse(unb64url(body));
+    if (payload.exp && Date.now() > payload.exp) return null;
+    return payload;
+  } catch {
+    return null;
+  }
 }
