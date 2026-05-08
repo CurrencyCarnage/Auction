@@ -22,8 +22,8 @@ assert(!('audit' in state), 'public state must not expose audit');
 const lot = state.lots[0];
 
 const adminLogin = await request('/api/admin/login', { method: 'POST', body: JSON.stringify({ username: 'admin', password: 'admin' }) });
-assert(adminLogin.admin?.username === 'admin', 'admin login should work in demo mode');
-const adminHeaders = { 'x-admin-user': 'admin', 'x-admin-pass': 'admin' };
+assert(adminLogin.admin?.username === 'admin' && adminLogin.admin?.token, 'admin login should return a session token in demo mode');
+const adminHeaders = { 'x-admin-token': adminLogin.admin.token };
 await request('/api/admin/open-hours', { method: 'POST', headers: adminHeaders, body: JSON.stringify({ hours: 5 }) });
 
 const login = await request('/api/login', { method: 'POST', body: JSON.stringify({ username: 'user1', password: 'pass1' }) });

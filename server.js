@@ -2,6 +2,7 @@ import express from 'express';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
 import { z } from 'zod';
+import crypto from 'crypto';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -15,6 +16,7 @@ const ADMIN_USERNAME = process.env.ADMIN_USERNAME || (DEMO_MODE ? 'admin' : '');
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || (DEMO_MODE ? 'admin' : '');
 const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, 'data');
 const STATE_FILE = path.join(DATA_DIR, 'state.json');
+const ADMIN_SESSION_TOKEN = process.env.ADMIN_SESSION_TOKEN || crypto.randomBytes(32).toString('hex');
 
 if (!DEMO_MODE && (!ADMIN_USERNAME || !ADMIN_PASSWORD)) {
   throw new Error('Production mode requires ADMIN_USERNAME and ADMIN_PASSWORD environment variables.');
@@ -80,7 +82,11 @@ function audit(state, actor, action, detail = {}) {
 }
 function publicUser(u) { return u && { username: u.username, name: u.name, limit: u.limit }; }
 function auth(req) { const username = req.headers['x-demo-user']; return users.find(u => u.username === username); }
-function adminAuth(req) { return req.headers['x-admin-user'] === ADMIN_USERNAME && req.headers['x-admin-pass'] === ADMIN_PASSWORD; }
+function adminAuth(req) {
+  const bearer = String(req.headers.authorization || '').replace(/^Bearer\s+/i, '');
+  const token = req.headers['x-admin-token'] || bearer;
+  return Boolean(token && token === ADMIN_SESSION_TOKEN);
+}
 function requireAdmin(req, res) { if (!adminAuth(req)) { res.status(401).json({ error: 'Admin login required' }); return false; } return true; }
 function slug(s) { return String(s || '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '') || `lot-${Date.now()}`; }
 function normalizeLot(input, existing = {}) {
@@ -166,7 +172,7 @@ app.post('/api/admin/login', (req, res) => {
   const body = parseBody(loginSchema, req, res); if (!body) return;
   const { username, password } = body;
   if (username !== ADMIN_USERNAME || password !== ADMIN_PASSWORD) return res.status(401).json({ error: 'Wrong admin username or password' });
-  res.json({ admin: { username: ADMIN_USERNAME } });
+  res.json({ admin: { username: ADMIN_USERNAME, token: ADMIN_SESSION_TOKEN } });
 });
 app.post('/api/admin/open-hours', (req, res) => {
   if (!requireAdmin(req, res)) return;

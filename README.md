@@ -40,6 +40,7 @@ Demo admin:
 | `DEMO_MODE` | `true` | Set to `false` for production hardening. |
 | `ADMIN_USERNAME` | `admin` in demo mode | Required when `DEMO_MODE=false`. |
 | `ADMIN_PASSWORD` | `admin` in demo mode | Required when `DEMO_MODE=false`. |
+| `ADMIN_SESSION_TOKEN` | random per server start | Optional fixed admin API token for simple deployments; replace with real sessions before production. |
 | `DATA_DIR` | `./data` | JSON state directory for demo mode. Replace with DB in production. |
 
 ## Health check

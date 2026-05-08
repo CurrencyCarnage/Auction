@@ -18,7 +18,7 @@ const toLocalInput = ms => new Date(ms - new Date().getTimezoneOffset() * 60000)
 async function api(path, opts = {}) {
   const user = JSON.parse(sessionStorage.gtAuctionUser || 'null');
   const admin = JSON.parse(sessionStorage.gtAuctionAdmin || 'null');
-  const res = await fetch(path, { ...opts, headers: { 'Content-Type': 'application/json', ...(user?.username ? { 'x-demo-user': user.username } : {}), ...(admin ? { 'x-admin-user': 'admin', 'x-admin-pass': 'admin' } : {}), ...(opts.headers || {}) } });
+  const res = await fetch(path, { ...opts, headers: { 'Content-Type': 'application/json', ...(user?.username ? { 'x-demo-user': user.username } : {}), ...(admin?.token ? { 'x-admin-token': admin.token } : {}), ...(opts.headers || {}) } });
   const data = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(data.error || 'Request failed');
   return data;
