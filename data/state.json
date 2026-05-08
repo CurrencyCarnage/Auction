@@ -1,0 +1,146 @@
+{
+  "createdAt": 1778196943288,
+  "updatedAt": 1778196943288,
+  "lots": [
+    {
+      "id": "shacman-x3000",
+      "brand": "SHACMAN",
+      "model": "X3000 Tractor Head",
+      "type": "Heavy Truck",
+      "location": "Tbilisi Yard",
+      "year": 2022,
+      "hours": "41,000 km",
+      "increment": 5000,
+      "buyNow": 310000,
+      "current": 185000,
+      "endsIn": 7860000,
+      "accent": "#56B461",
+      "shape": "truck",
+      "endAt": 1778204803288,
+      "buyRequested": false,
+      "buyRequests": [],
+      "bids": [
+        {
+          "user": "opening",
+          "name": "Opening bid",
+          "amount": 185000,
+          "at": 1778196043288,
+          "type": "opening"
+        }
+      ],
+      "proxy": {}
+    },
+    {
+      "id": "shacman-f3000-dump",
+      "brand": "SHACMAN",
+      "model": "F3000 Dump Truck",
+      "type": "Dump Truck",
+      "location": "Rustavi",
+      "year": 2021,
+      "hours": "58,000 km",
+      "increment": 4000,
+      "buyNow": 255000,
+      "current": 146000,
+      "endsIn": 6120000,
+      "accent": "#FBC721",
+      "shape": "dump",
+      "endAt": 1778203063288,
+      "buyRequested": true,
+      "buyRequests": [],
+      "bids": [
+        {
+          "user": "opening",
+          "name": "Opening bid",
+          "amount": 146000,
+          "at": 1778195803288,
+          "type": "opening"
+        }
+      ],
+      "proxy": {}
+    },
+    {
+      "id": "shacman-l3000-mixer",
+      "brand": "SHACMAN",
+      "model": "L3000 Concrete Mixer",
+      "type": "Mixer Truck",
+      "location": "Kutaisi",
+      "year": 2020,
+      "hours": "3,900 h",
+      "increment": 3000,
+      "buyNow": 198000,
+      "current": 91000,
+      "endsIn": 11100000,
+      "accent": "#12A24B",
+      "shape": "mixer",
+      "endAt": 1778208043288,
+      "buyRequested": false,
+      "buyRequests": [],
+      "bids": [
+        {
+          "user": "opening",
+          "name": "Opening bid",
+          "amount": 91000,
+          "at": 1778195563288,
+          "type": "opening"
+        }
+      ],
+      "proxy": {}
+    },
+    {
+      "id": "case-580st",
+      "brand": "CASE",
+      "model": "580ST Backhoe Loader",
+      "type": "Backhoe Loader",
+      "location": "Batumi",
+      "year": 2019,
+      "hours": "4,250 h",
+      "increment": 2500,
+      "buyNow": 168000,
+      "current": 72000,
+      "endsIn": 10140000,
+      "accent": "#FBC721",
+      "shape": "backhoe",
+      "endAt": 1778207083288,
+      "buyRequested": false,
+      "buyRequests": [],
+      "bids": [
+        {
+          "user": "opening",
+          "name": "Opening bid",
+          "amount": 72000,
+          "at": 1778195323288,
+          "type": "opening"
+        }
+      ],
+      "proxy": {}
+    },
+    {
+      "id": "case-cx220c",
+      "brand": "CASE",
+      "model": "CX220C Excavator",
+      "type": "Excavator",
+      "location": "Tbilisi Yard",
+      "year": 2020,
+      "hours": "5,100 h",
+      "increment": 3000,
+      "buyNow": 235000,
+      "current": 118000,
+      "endsIn": 15480000,
+      "accent": "#56B461",
+      "shape": "excavator",
+      "endAt": 1778212423288,
+      "buyRequested": false,
+      "buyRequests": [],
+      "bids": [
+        {
+          "user": "opening",
+          "name": "Opening bid",
+          "amount": 118000,
+          "at": 1778195083288,
+          "type": "opening"
+        }
+      ],
+      "proxy": {}
+    }
+  ]
+}
