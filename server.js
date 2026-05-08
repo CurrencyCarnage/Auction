@@ -25,7 +25,7 @@ app.use('/api', rateLimit({ windowMs: 60 * 1000, limit: config.demoMode ? 240 : 
 
 app.get('/healthz', (_, res) => res.json({ ok: true, mode: config.demoMode ? 'demo' : 'production', time: new Date().toISOString() }));
 app.use('/api/admin', adminRoutes({ adminService, config }));
-app.use('/api', publicRoutes({ auctionService }));
+app.use('/api', publicRoutes({ auctionService, config }));
 
 app.use(express.static(path.join(__dirname, 'dist')));
 app.get(/.*/, (_, res) => res.sendFile(path.join(__dirname, 'dist', 'index.html')));

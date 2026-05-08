@@ -41,6 +41,7 @@ Demo admin:
 | `ADMIN_USERNAME` | `admin` in demo mode | Required when `DEMO_MODE=false`. |
 | `ADMIN_PASSWORD` | `admin` in demo mode | Required when `DEMO_MODE=false`. |
 | `ADMIN_SESSION_TOKEN` | random per server start | Optional fixed admin API token for simple deployments; replace with real sessions before production. |
+| `SESSION_SECRET` | random per server start | Signs bidder login tokens. Set a stable secret for any shared deployment. |
 | `STORAGE_DRIVER` | `json` | Keep `json` for demo; `postgres` is scaffolded for the production adapter. |
 | `DATABASE_URL` | empty | Required when `STORAGE_DRIVER=postgres`. |
 | `DATA_DIR` | `./data` | JSON state directory for demo mode. Replace with DB in production. |

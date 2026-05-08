@@ -18,6 +18,7 @@ export function createConfig(dirname) {
     adminUsername,
     adminPassword,
     adminSessionToken: process.env.ADMIN_SESSION_TOKEN || crypto.randomBytes(32).toString('hex'),
+    sessionSecret: process.env.SESSION_SECRET || process.env.ADMIN_SESSION_TOKEN || crypto.randomBytes(32).toString('hex'),
     storageDriver,
     databaseUrl: process.env.DATABASE_URL,
     dataDir: process.env.DATA_DIR || path.join(dirname, 'data'),
