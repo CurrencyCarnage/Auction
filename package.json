@@ -9,7 +9,8 @@
     "db:migrate": "node src/server/db/migrate.js",
     "db:seed-demo": "node src/server/db/seedDemo.js",
     "test:behavior": "node scripts/behavior-test.mjs",
-    "test:postgres": "node scripts/postgres-parity-test.mjs"
+    "test:postgres": "node scripts/postgres-parity-test.mjs",
+    "staging:setup": "node scripts/staging-setup.mjs"
   },
   "dependencies": {
     "@vitejs/plugin-react": "latest",
