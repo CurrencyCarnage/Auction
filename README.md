@@ -53,9 +53,10 @@ Demo admin:
 
 ```bash
 DATABASE_URL=postgres://... npm run db:migrate
+DATABASE_URL=postgres://... npm run db:seed-demo
 ```
 
-The PostgreSQL schema exists, but the live app still defaults to JSON storage until adapter parity is implemented and tested.
+The PostgreSQL schema and demo seeding exist, but the live app still defaults to JSON storage until adapter parity is implemented and tested.
 
 ## Production plan
 

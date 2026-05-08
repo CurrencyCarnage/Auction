@@ -6,7 +6,8 @@
     "preview": "vite preview --host 0.0.0.0",
     "start": "node server.js",
     "smoke": "node scripts/smoke-test.mjs",
-    "db:migrate": "node src/server/db/migrate.js"
+    "db:migrate": "node src/server/db/migrate.js",
+    "db:seed-demo": "node src/server/db/seedDemo.js"
   },
   "dependencies": {
     "@vitejs/plugin-react": "latest",
