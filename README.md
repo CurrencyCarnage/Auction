@@ -1,6 +1,6 @@
 # GT Auction Demo
 
-Presentation MVP for GT Group auction concept: construction-vehicle lots, demo users, bidding, proxy bidding, buy-now requests, anti-snipe extension, and manager-risk hints.
+Presentation MVP for GT Group auction concept: heavy construction/commercial vehicle lots, demo users, bidding, proxy bidding, buy-now requests, admin lot management, and manager-review auction flow.
 
 ## Local run
 
@@ -12,12 +12,40 @@ npm start
 
 Then open `http://localhost:4173`.
 
-## Demo users
+## Demo credentials
 
-Use `user1` / `pass1` through `user10` / `pass10`.
+Bidder users:
+
+- `user1` / `pass1`
+- `user2` / `pass2`
+- `user3` / `pass3`
+- `user4` / `pass4`
+- `user5` / `pass5`
+
+Demo admin:
+
+- `admin` / `admin`
 
 ## Render deploy
 
 - Build command: `npm install && npm run build`
 - Start command: `npm start`
 - Environment: Node
+
+## Environment variables
+
+| Variable | Default | Notes |
+| --- | --- | --- |
+| `PORT` | `4173` | Render sets this automatically. |
+| `DEMO_MODE` | `true` | Set to `false` for production hardening. |
+| `ADMIN_USERNAME` | `admin` in demo mode | Required when `DEMO_MODE=false`. |
+| `ADMIN_PASSWORD` | `admin` in demo mode | Required when `DEMO_MODE=false`. |
+| `DATA_DIR` | `./data` | JSON state directory for demo mode. Replace with DB in production. |
+
+## Health check
+
+`GET /healthz` returns runtime health and mode.
+
+## Production plan
+
+See [`docs/production-roadmap.md`](docs/production-roadmap.md).

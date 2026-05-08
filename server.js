@@ -1,4 +1,6 @@
 import express from 'express';
+import helmet from 'helmet';
+import rateLimit from 'express-rate-limit';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -7,10 +9,20 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const app = express();
 const PORT = process.env.PORT || 4173;
-const DATA_DIR = path.join(__dirname, 'data');
+const DEMO_MODE = process.env.DEMO_MODE !== 'false';
+const ADMIN_USERNAME = process.env.ADMIN_USERNAME || (DEMO_MODE ? 'admin' : '');
+const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || (DEMO_MODE ? 'admin' : '');
+const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, 'data');
 const STATE_FILE = path.join(DATA_DIR, 'state.json');
 
-app.use(express.json());
+if (!DEMO_MODE && (!ADMIN_USERNAME || !ADMIN_PASSWORD)) {
+  throw new Error('Production mode requires ADMIN_USERNAME and ADMIN_PASSWORD environment variables.');
+}
+
+app.set('trust proxy', 1);
+app.use(helmet({ contentSecurityPolicy: false }));
+app.use(express.json({ limit: '64kb' }));
+app.use('/api', rateLimit({ windowMs: 60 * 1000, limit: DEMO_MODE ? 240 : 90, standardHeaders: true, legacyHeaders: false }));
 
 const users = Array.from({ length: 5 }, (_, i) => ({
   username: `user${i + 1}`,
@@ -41,6 +53,7 @@ function freshState() {
       bids: [{ user: 'opening', name: 'Opening bid', amount: l.current, at: start - 1000 * 60 * (15 + i * 4), type: 'opening' }],
       proxy: {},
     })),
+    audit: [{ at: start, actor: 'system', action: 'state.seeded', detail: { lots: seedLots.length } }],
   };
 }
 function stateNeedsRefresh(state) {
@@ -61,9 +74,12 @@ function readState() {
   return state;
 }
 function writeState(state) { state.updatedAt = Date.now(); fs.writeFileSync(STATE_FILE, JSON.stringify(state, null, 2)); return state; }
+function audit(state, actor, action, detail = {}) {
+  state.audit = [{ at: Date.now(), actor, action, detail }, ...(state.audit || [])].slice(0, 500);
+}
 function publicUser(u) { return u && { username: u.username, name: u.name, limit: u.limit }; }
 function auth(req) { const username = req.headers['x-demo-user']; return users.find(u => u.username === username); }
-function adminAuth(req) { return req.headers['x-admin-user'] === 'admin' && req.headers['x-admin-pass'] === 'admin'; }
+function adminAuth(req) { return req.headers['x-admin-user'] === ADMIN_USERNAME && req.headers['x-admin-pass'] === ADMIN_PASSWORD; }
 function requireAdmin(req, res) { if (!adminAuth(req)) { res.status(401).json({ error: 'Admin login required' }); return false; } return true; }
 function slug(s) { return String(s || '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '') || `lot-${Date.now()}`; }
 function normalizeLot(input, existing = {}) {
@@ -105,18 +121,28 @@ function autoProxy(lot, skipUser, messages) {
   messages.push(`Outbid by ${username}'s proxy at ${money(bid)}`);
 }
 
+app.get('/healthz', (_, res) => res.json({ ok: true, mode: DEMO_MODE ? 'demo' : 'production', time: new Date().toISOString() }));
 app.get('/api/users', (_, res) => res.json(users.map(publicUser)));
-app.get('/api/state', (_, res) => res.json(readState()));
+app.get('/api/state', (_, res) => {
+  const state = readState();
+  const publicState = { ...state, audit: undefined };
+  res.json(publicState);
+});
+app.get('/api/admin/audit', (req, res) => {
+  if (!requireAdmin(req, res)) return;
+  res.json({ audit: readState().audit || [] });
+});
 app.post('/api/admin/login', (req, res) => {
   const { username, password } = req.body || {};
-  if (username !== 'admin' || password !== 'admin') return res.status(401).json({ error: 'Wrong admin username or password' });
-  res.json({ admin: { username: 'admin' } });
+  if (username !== ADMIN_USERNAME || password !== ADMIN_PASSWORD) return res.status(401).json({ error: 'Wrong admin username or password' });
+  res.json({ admin: { username: ADMIN_USERNAME } });
 });
 app.post('/api/admin/open-hours', (req, res) => {
   if (!requireAdmin(req, res)) return;
   const hours = Math.max(1, Math.min(72, Number(req.body?.hours || 8)));
   const state = readState();
   state.lots = state.lots.map((lot, i) => ({ ...lot, endAt: Date.now() + (hours * hour) + i * 7 * 60 * 1000 }));
+  audit(state, 'admin', 'lots.open_hours', { hours });
   res.json({ state: writeState(state), message: `All auctions opened for about ${hours} hours` });
 });
 app.post('/api/admin/lot', (req, res) => {
@@ -129,12 +155,15 @@ app.post('/api/admin/lot', (req, res) => {
   const lot = normalizeLot({ ...incoming, id }, existing);
   if (existingIndex >= 0) state.lots[existingIndex] = lot;
   else state.lots.unshift(lot);
+  audit(state, 'admin', existingIndex >= 0 ? 'lot.updated' : 'lot.added', { lotId: lot.id, model: lot.model });
   res.json({ state: writeState(state), message: existingIndex >= 0 ? 'Lot updated' : 'Lot added' });
 });
 app.delete('/api/admin/lot/:id', (req, res) => {
   if (!requireAdmin(req, res)) return;
   const state = readState();
+  const removed = state.lots.find(l => l.id === req.params.id);
   state.lots = state.lots.filter(l => l.id !== req.params.id);
+  audit(state, 'admin', 'lot.removed', { lotId: req.params.id, model: removed?.model });
   res.json({ state: writeState(state), message: 'Lot removed' });
 });
 app.post('/api/login', (req, res) => {
@@ -156,6 +185,7 @@ app.post('/api/bid', (req, res) => {
   const previous = lot.current;
   lot.current = bidAmount;
   lot.bids.unshift({ user: user.username, name: user.name, amount: bidAmount, at: Date.now(), type: 'manual' });
+  audit(state, user.username, 'bid.placed', { lotId: lot.id, amount: bidAmount });
   const messages = [`Bid placed by ${user.username}: ${money(bidAmount)}`];
   if (lot.endAt - Date.now() < 3 * 60 * 1000) { lot.endAt += 60 * 1000; messages.push('Anti-snipe: auction extended by 1 minute'); }
   if (bidAmount >= previous * 1.5) { lot.suspicious = true; messages.push('Manager alert: suspicious bid jump flagged'); }
@@ -171,6 +201,7 @@ app.post('/api/proxy', (req, res) => {
   if (!Number.isFinite(maxAmount) || maxAmount < min) return res.status(400).json({ error: `Proxy max must be at least ${money(min)}` });
   if (maxAmount > user.limit) return res.status(400).json({ error: `${user.username}'s bid ceiling is ${money(user.limit)}` });
   lot.proxy[user.username] = maxAmount;
+  audit(state, user.username, 'proxy.saved', { lotId: lot.id, max: maxAmount });
   const messages = [`${user.username}'s proxy saved up to ${money(maxAmount)}`];
   if (lot.bids[0]?.user !== user.username && lot.current + lot.increment <= maxAmount) {
     lot.current += lot.increment;
@@ -185,6 +216,7 @@ app.post('/api/buy-now', (req, res) => {
   if (!lot) return res.status(404).json({ error: 'Lot not found' });
   lot.buyRequested = true;
   lot.buyRequests = [...(lot.buyRequests || []), { user: user.username, at: Date.now(), price: lot.buyNow }];
+  audit(state, user.username, 'buy_now.requested', { lotId: lot.id, price: lot.buyNow });
   writeState(state); res.json({ state, message: 'Buy Now request sent to manager. Auction stays live.' });
 });
 
