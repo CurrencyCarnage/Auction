@@ -63,6 +63,34 @@ function readState() {
 function writeState(state) { state.updatedAt = Date.now(); fs.writeFileSync(STATE_FILE, JSON.stringify(state, null, 2)); return state; }
 function publicUser(u) { return u && { username: u.username, name: u.name, limit: u.limit }; }
 function auth(req) { const username = req.headers['x-demo-user']; return users.find(u => u.username === username); }
+function adminAuth(req) { return req.headers['x-admin-user'] === 'admin' && req.headers['x-admin-pass'] === 'admin'; }
+function requireAdmin(req, res) { if (!adminAuth(req)) { res.status(401).json({ error: 'Admin login required' }); return false; } return true; }
+function slug(s) { return String(s || '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '') || `lot-${Date.now()}`; }
+function normalizeLot(input, existing = {}) {
+  const now = Date.now();
+  const endAt = input.endAt ? new Date(input.endAt).getTime() : Number(input.endAtMs || existing.endAt || now + 8 * hour);
+  return {
+    ...existing,
+    id: slug(input.id || existing.id || input.model),
+    brand: String(input.brand || existing.brand || 'SHACMAN').toUpperCase(),
+    model: String(input.model || existing.model || 'New Auction Lot'),
+    type: String(input.type || existing.type || 'Heavy Truck'),
+    location: String(input.location || existing.location || 'Tbilisi Yard'),
+    year: Number(input.year || existing.year || new Date().getFullYear()),
+    hours: String(input.hours || existing.hours || '0 h'),
+    increment: Number(input.increment || existing.increment || 1000),
+    buyNow: Number(input.buyNow || existing.buyNow || 0),
+    current: Number(input.current || existing.current || 0),
+    endAt: Number.isFinite(endAt) ? endAt : now + 8 * hour,
+    imageKey: input.imageKey || existing.imageKey || existing.id || 'shacman-x3000',
+    accent: existing.accent || '#56B461',
+    shape: existing.shape || 'truck',
+    buyRequested: Boolean(input.buyRequested ?? existing.buyRequested ?? false),
+    buyRequests: existing.buyRequests || [],
+    bids: existing.bids?.length ? existing.bids : [{ user: 'opening', name: 'Opening bid', amount: Number(input.current || existing.current || 0), at: now, type: 'opening' }],
+    proxy: existing.proxy || {},
+  };
+}
 function money(n) { return '₾' + Math.round(n).toLocaleString('en-US'); }
 function autoProxy(lot, skipUser, messages) {
   const candidate = Object.entries(lot.proxy || {})
@@ -79,6 +107,36 @@ function autoProxy(lot, skipUser, messages) {
 
 app.get('/api/users', (_, res) => res.json(users.map(publicUser)));
 app.get('/api/state', (_, res) => res.json(readState()));
+app.post('/api/admin/login', (req, res) => {
+  const { username, password } = req.body || {};
+  if (username !== 'admin' || password !== 'admin') return res.status(401).json({ error: 'Wrong admin username or password' });
+  res.json({ admin: { username: 'admin' } });
+});
+app.post('/api/admin/open-hours', (req, res) => {
+  if (!requireAdmin(req, res)) return;
+  const hours = Math.max(1, Math.min(72, Number(req.body?.hours || 8)));
+  const state = readState();
+  state.lots = state.lots.map((lot, i) => ({ ...lot, endAt: Date.now() + (hours * hour) + i * 7 * 60 * 1000 }));
+  res.json({ state: writeState(state), message: `All auctions opened for about ${hours} hours` });
+});
+app.post('/api/admin/lot', (req, res) => {
+  if (!requireAdmin(req, res)) return;
+  const state = readState();
+  const incoming = req.body || {};
+  const id = slug(incoming.id || incoming.model);
+  const existingIndex = state.lots.findIndex(l => l.id === id);
+  const existing = existingIndex >= 0 ? state.lots[existingIndex] : {};
+  const lot = normalizeLot({ ...incoming, id }, existing);
+  if (existingIndex >= 0) state.lots[existingIndex] = lot;
+  else state.lots.unshift(lot);
+  res.json({ state: writeState(state), message: existingIndex >= 0 ? 'Lot updated' : 'Lot added' });
+});
+app.delete('/api/admin/lot/:id', (req, res) => {
+  if (!requireAdmin(req, res)) return;
+  const state = readState();
+  state.lots = state.lots.filter(l => l.id !== req.params.id);
+  res.json({ state: writeState(state), message: 'Lot removed' });
+});
 app.post('/api/login', (req, res) => {
   const { username, password } = req.body || {};
   const user = users.find(u => u.username === String(username || '').toLowerCase().trim() && u.password === password);

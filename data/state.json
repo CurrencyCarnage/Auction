@@ -1,6 +1,6 @@
 {
   "createdAt": 1778248203717,
-  "updatedAt": 1778248203717,
+  "updatedAt": 1778248722883,
   "lots": [
     {
       "id": "shacman-x3000",
@@ -16,7 +16,7 @@
       "endsIn": 33060000,
       "accent": "#56B461",
       "shape": "truck",
-      "endAt": 1778281263717,
+      "endAt": 1778270322805,
       "buyRequested": false,
       "buyRequests": [],
       "bids": [
@@ -44,7 +44,7 @@
       "endsIn": 27720000,
       "accent": "#FBC721",
       "shape": "dump",
-      "endAt": 1778275923717,
+      "endAt": 1778270742806,
       "buyRequested": true,
       "buyRequests": [],
       "bids": [
@@ -72,7 +72,7 @@
       "endsIn": 39900000,
       "accent": "#12A24B",
       "shape": "mixer",
-      "endAt": 1778288103717,
+      "endAt": 1778271162806,
       "buyRequested": false,
       "buyRequests": [],
       "bids": [
@@ -100,7 +100,7 @@
       "endsIn": 31740000,
       "accent": "#FBC721",
       "shape": "backhoe",
-      "endAt": 1778279943717,
+      "endAt": 1778271582806,
       "buyRequested": false,
       "buyRequests": [],
       "bids": [
@@ -128,7 +128,7 @@
       "endsIn": 44280000,
       "accent": "#56B461",
       "shape": "excavator",
-      "endAt": 1778292483717,
+      "endAt": 1778272002806,
       "buyRequested": false,
       "buyRequests": [],
       "bids": [
