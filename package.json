@@ -1,1 +1,21 @@
-{"type":"module","scripts":{"dev":"vite --host 0.0.0.0","build":"vite build","preview":"vite preview --host 0.0.0.0","start":"node server.js"},"dependencies":{"@vitejs/plugin-react":"latest","express":"latest","express-rate-limit":"^8.5.1","helmet":"^8.1.0","lucide-react":"latest","react":"latest","react-dom":"latest","vite":"latest"}}
+{
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host 0.0.0.0",
+    "build": "vite build",
+    "preview": "vite preview --host 0.0.0.0",
+    "start": "node server.js",
+    "smoke": "node scripts/smoke-test.mjs"
+  },
+  "dependencies": {
+    "@vitejs/plugin-react": "latest",
+    "express": "latest",
+    "express-rate-limit": "^8.5.1",
+    "helmet": "^8.1.0",
+    "lucide-react": "latest",
+    "react": "latest",
+    "react-dom": "latest",
+    "vite": "latest",
+    "zod": "^4.4.3"
+  }
+}

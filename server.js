@@ -1,6 +1,7 @@
 import express from 'express';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
+import { z } from 'zod';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -107,6 +108,35 @@ function normalizeLot(input, existing = {}) {
     proxy: existing.proxy || {},
   };
 }
+function parseBody(schema, req, res) {
+  const parsed = schema.safeParse(req.body || {});
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.issues[0]?.message || 'Invalid request' });
+    return null;
+  }
+  return parsed.data;
+}
+const loginSchema = z.object({ username: z.string().trim().min(1).max(80), password: z.string().min(1).max(200) });
+const hoursSchema = z.object({ hours: z.coerce.number().int().min(1).max(72).default(8) });
+const lotSchema = z.object({
+  id: z.string().trim().max(80).optional().or(z.literal('')),
+  brand: z.string().trim().min(1).max(80).default('SHACMAN'),
+  model: z.string().trim().min(1).max(140),
+  type: z.string().trim().min(1).max(100).default('Heavy Truck'),
+  location: z.string().trim().min(1).max(120).default('Tbilisi Yard'),
+  year: z.coerce.number().int().min(1980).max(2100).default(new Date().getFullYear()),
+  hours: z.string().trim().min(1).max(80).default('0 h'),
+  increment: z.coerce.number().positive().max(1000000).default(1000),
+  buyNow: z.coerce.number().min(0).max(100000000).default(0),
+  current: z.coerce.number().min(0).max(100000000).default(0),
+  endAt: z.string().optional(),
+  endAtMs: z.coerce.number().optional(),
+  imageKey: z.string().trim().max(120).optional(),
+  buyRequested: z.boolean().optional(),
+});
+const bidSchema = z.object({ lotId: z.string().trim().min(1).max(120), amount: z.coerce.number().positive().max(100000000) });
+const proxySchema = z.object({ lotId: z.string().trim().min(1).max(120), max: z.coerce.number().positive().max(100000000) });
+const lotIdSchema = z.object({ lotId: z.string().trim().min(1).max(120) });
 function money(n) { return '₾' + Math.round(n).toLocaleString('en-US'); }
 function autoProxy(lot, skipUser, messages) {
   const candidate = Object.entries(lot.proxy || {})
@@ -133,13 +163,15 @@ app.get('/api/admin/audit', (req, res) => {
   res.json({ audit: readState().audit || [] });
 });
 app.post('/api/admin/login', (req, res) => {
-  const { username, password } = req.body || {};
+  const body = parseBody(loginSchema, req, res); if (!body) return;
+  const { username, password } = body;
   if (username !== ADMIN_USERNAME || password !== ADMIN_PASSWORD) return res.status(401).json({ error: 'Wrong admin username or password' });
   res.json({ admin: { username: ADMIN_USERNAME } });
 });
 app.post('/api/admin/open-hours', (req, res) => {
   if (!requireAdmin(req, res)) return;
-  const hours = Math.max(1, Math.min(72, Number(req.body?.hours || 8)));
+  const body = parseBody(hoursSchema, req, res); if (!body) return;
+  const { hours } = body;
   const state = readState();
   state.lots = state.lots.map((lot, i) => ({ ...lot, endAt: Date.now() + (hours * hour) + i * 7 * 60 * 1000 }));
   audit(state, 'admin', 'lots.open_hours', { hours });
@@ -148,7 +180,7 @@ app.post('/api/admin/open-hours', (req, res) => {
 app.post('/api/admin/lot', (req, res) => {
   if (!requireAdmin(req, res)) return;
   const state = readState();
-  const incoming = req.body || {};
+  const incoming = parseBody(lotSchema, req, res); if (!incoming) return;
   const id = slug(incoming.id || incoming.model);
   const existingIndex = state.lots.findIndex(l => l.id === id);
   const existing = existingIndex >= 0 ? state.lots[existingIndex] : {};
@@ -167,7 +199,8 @@ app.delete('/api/admin/lot/:id', (req, res) => {
   res.json({ state: writeState(state), message: 'Lot removed' });
 });
 app.post('/api/login', (req, res) => {
-  const { username, password } = req.body || {};
+  const body = parseBody(loginSchema, req, res); if (!body) return;
+  const { username, password } = body;
   const user = users.find(u => u.username === String(username || '').toLowerCase().trim() && u.password === password);
   if (!user) return res.status(401).json({ error: 'Wrong username or password' });
   res.json({ user: publicUser(user) });
@@ -175,7 +208,8 @@ app.post('/api/login', (req, res) => {
 app.post('/api/reset', (_, res) => res.json(writeState(freshState())));
 app.post('/api/bid', (req, res) => {
   const user = auth(req); if (!user) return res.status(401).json({ error: 'Login required' });
-  const { lotId, amount } = req.body || {}; const bidAmount = Number(amount);
+  const body = parseBody(bidSchema, req, res); if (!body) return;
+  const { lotId, amount } = body; const bidAmount = Number(amount);
   const state = readState(); const lot = state.lots.find(l => l.id === lotId);
   if (!lot) return res.status(404).json({ error: 'Lot not found' });
   if (Date.now() > lot.endAt) return res.status(400).json({ error: 'Auction ended' });
@@ -194,7 +228,8 @@ app.post('/api/bid', (req, res) => {
 });
 app.post('/api/proxy', (req, res) => {
   const user = auth(req); if (!user) return res.status(401).json({ error: 'Login required' });
-  const { lotId, max } = req.body || {}; const maxAmount = Number(max);
+  const body = parseBody(proxySchema, req, res); if (!body) return;
+  const { lotId, max } = body; const maxAmount = Number(max);
   const state = readState(); const lot = state.lots.find(l => l.id === lotId);
   if (!lot) return res.status(404).json({ error: 'Lot not found' });
   const min = lot.current + lot.increment;
@@ -212,7 +247,8 @@ app.post('/api/proxy', (req, res) => {
 });
 app.post('/api/buy-now', (req, res) => {
   const user = auth(req); if (!user) return res.status(401).json({ error: 'Login required' });
-  const { lotId } = req.body || {}; const state = readState(); const lot = state.lots.find(l => l.id === lotId);
+  const body = parseBody(lotIdSchema, req, res); if (!body) return;
+  const { lotId } = body; const state = readState(); const lot = state.lots.find(l => l.id === lotId);
   if (!lot) return res.status(404).json({ error: 'Lot not found' });
   lot.buyRequested = true;
   lot.buyRequests = [...(lot.buyRequests || []), { user: user.username, at: Date.now(), price: lot.buyNow }];
