@@ -19,12 +19,13 @@ const users = Array.from({ length: 5 }, (_, i) => ({
   limit: 250000 + i * 25000,
 }));
 
+const hour = 1000 * 60 * 60;
 const seedLots = [
-  { id: 'shacman-x3000', brand: 'SHACMAN', model: 'X3000 Tractor Head', type: 'Heavy Truck', location: 'Tbilisi Yard', year: 2022, hours: '41,000 km', increment: 5000, buyNow: 310000, current: 185000, endsIn: 1000 * 60 * 60 * 2 + 1000 * 60 * 11, accent: '#56B461', shape: 'truck' },
-  { id: 'shacman-f3000-dump', brand: 'SHACMAN', model: 'F3000 Dump Truck', type: 'Dump Truck', location: 'Rustavi', year: 2021, hours: '58,000 km', increment: 4000, buyNow: 255000, current: 146000, endsIn: 1000 * 60 * 60 * 1 + 1000 * 60 * 42, accent: '#FBC721', shape: 'dump' },
-  { id: 'shacman-l3000-mixer', brand: 'SHACMAN', model: 'L3000 Concrete Mixer', type: 'Mixer Truck', location: 'Kutaisi', year: 2020, hours: '3,900 h', increment: 3000, buyNow: 198000, current: 91000, endsIn: 1000 * 60 * 60 * 3 + 1000 * 60 * 5, accent: '#12A24B', shape: 'mixer' },
-  { id: 'case-580st', brand: 'CASE', model: '580ST Backhoe Loader', type: 'Backhoe Loader', location: 'Batumi', year: 2019, hours: '4,250 h', increment: 2500, buyNow: 168000, current: 72000, endsIn: 1000 * 60 * 60 * 2 + 1000 * 60 * 49, accent: '#FBC721', shape: 'backhoe' },
-  { id: 'case-cx220c', brand: 'CASE', model: 'CX220C Excavator', type: 'Excavator', location: 'Tbilisi Yard', year: 2020, hours: '5,100 h', increment: 3000, buyNow: 235000, current: 118000, endsIn: 1000 * 60 * 60 * 4 + 1000 * 60 * 18, accent: '#56B461', shape: 'excavator' },
+  { id: 'shacman-x3000', brand: 'SHACMAN', model: 'X3000 Tractor Head', type: 'Heavy Truck', location: 'Tbilisi Yard', year: 2022, hours: '41,000 km', increment: 5000, buyNow: 310000, current: 185000, endsIn: 9 * hour + 11 * 60 * 1000, accent: '#56B461', shape: 'truck' },
+  { id: 'shacman-f3000-dump', brand: 'SHACMAN', model: 'F3000 Dump Truck', type: 'Dump Truck', location: 'Rustavi', year: 2021, hours: '58,000 km', increment: 4000, buyNow: 255000, current: 146000, endsIn: 7 * hour + 42 * 60 * 1000, accent: '#FBC721', shape: 'dump' },
+  { id: 'shacman-l3000-mixer', brand: 'SHACMAN', model: 'L3000 Concrete Mixer', type: 'Mixer Truck', location: 'Kutaisi', year: 2020, hours: '3,900 h', increment: 3000, buyNow: 198000, current: 91000, endsIn: 11 * hour + 5 * 60 * 1000, accent: '#12A24B', shape: 'mixer' },
+  { id: 'case-580st', brand: 'CASE', model: '580ST Backhoe Loader', type: 'Backhoe Loader', location: 'Batumi', year: 2019, hours: '4,250 h', increment: 2500, buyNow: 168000, current: 72000, endsIn: 8 * hour + 49 * 60 * 1000, accent: '#FBC721', shape: 'backhoe' },
+  { id: 'case-cx220c', brand: 'CASE', model: 'CX220C Excavator', type: 'Excavator', location: 'Tbilisi Yard', year: 2020, hours: '5,100 h', increment: 3000, buyNow: 235000, current: 118000, endsIn: 12 * hour + 18 * 60 * 1000, accent: '#56B461', shape: 'excavator' },
 ];
 
 function freshState() {
@@ -42,11 +43,23 @@ function freshState() {
     })),
   };
 }
+function stateNeedsRefresh(state) {
+  if (!state?.lots?.length) return true;
+  const now = Date.now();
+  const allClosedOrNearlyClosed = state.lots.every(l => Number(l.endAt || 0) < now + 10 * 60 * 1000);
+  const olderThanHalfDay = Number(state.createdAt || 0) < now - 12 * hour;
+  return allClosedOrNearlyClosed || olderThanHalfDay;
+}
 function ensureState() {
   fs.mkdirSync(DATA_DIR, { recursive: true });
   if (!fs.existsSync(STATE_FILE)) fs.writeFileSync(STATE_FILE, JSON.stringify(freshState(), null, 2));
 }
-function readState() { ensureState(); return JSON.parse(fs.readFileSync(STATE_FILE, 'utf8')); }
+function readState() {
+  ensureState();
+  const state = JSON.parse(fs.readFileSync(STATE_FILE, 'utf8'));
+  if (stateNeedsRefresh(state)) return writeState(freshState());
+  return state;
+}
 function writeState(state) { state.updatedAt = Date.now(); fs.writeFileSync(STATE_FILE, JSON.stringify(state, null, 2)); return state; }
 function publicUser(u) { return u && { username: u.username, name: u.name, limit: u.limit }; }
 function auth(req) { const username = req.headers['x-demo-user']; return users.find(u => u.username === username); }

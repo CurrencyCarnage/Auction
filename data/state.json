@@ -1,6 +1,6 @@
 {
-  "createdAt": 1778196943288,
-  "updatedAt": 1778196943288,
+  "createdAt": 1778248203717,
+  "updatedAt": 1778248203717,
   "lots": [
     {
       "id": "shacman-x3000",
@@ -13,10 +13,10 @@
       "increment": 5000,
       "buyNow": 310000,
       "current": 185000,
-      "endsIn": 7860000,
+      "endsIn": 33060000,
       "accent": "#56B461",
       "shape": "truck",
-      "endAt": 1778204803288,
+      "endAt": 1778281263717,
       "buyRequested": false,
       "buyRequests": [],
       "bids": [
@@ -24,7 +24,7 @@
           "user": "opening",
           "name": "Opening bid",
           "amount": 185000,
-          "at": 1778196043288,
+          "at": 1778247303717,
           "type": "opening"
         }
       ],
@@ -41,10 +41,10 @@
       "increment": 4000,
       "buyNow": 255000,
       "current": 146000,
-      "endsIn": 6120000,
+      "endsIn": 27720000,
       "accent": "#FBC721",
       "shape": "dump",
-      "endAt": 1778203063288,
+      "endAt": 1778275923717,
       "buyRequested": true,
       "buyRequests": [],
       "bids": [
@@ -52,7 +52,7 @@
           "user": "opening",
           "name": "Opening bid",
           "amount": 146000,
-          "at": 1778195803288,
+          "at": 1778247063717,
           "type": "opening"
         }
       ],
@@ -69,10 +69,10 @@
       "increment": 3000,
       "buyNow": 198000,
       "current": 91000,
-      "endsIn": 11100000,
+      "endsIn": 39900000,
       "accent": "#12A24B",
       "shape": "mixer",
-      "endAt": 1778208043288,
+      "endAt": 1778288103717,
       "buyRequested": false,
       "buyRequests": [],
       "bids": [
@@ -80,7 +80,7 @@
           "user": "opening",
           "name": "Opening bid",
           "amount": 91000,
-          "at": 1778195563288,
+          "at": 1778246823717,
           "type": "opening"
         }
       ],
@@ -97,10 +97,10 @@
       "increment": 2500,
       "buyNow": 168000,
       "current": 72000,
-      "endsIn": 10140000,
+      "endsIn": 31740000,
       "accent": "#FBC721",
       "shape": "backhoe",
-      "endAt": 1778207083288,
+      "endAt": 1778279943717,
       "buyRequested": false,
       "buyRequests": [],
       "bids": [
@@ -108,7 +108,7 @@
           "user": "opening",
           "name": "Opening bid",
           "amount": 72000,
-          "at": 1778195323288,
+          "at": 1778246583717,
           "type": "opening"
         }
       ],
@@ -125,10 +125,10 @@
       "increment": 3000,
       "buyNow": 235000,
       "current": 118000,
-      "endsIn": 15480000,
+      "endsIn": 44280000,
       "accent": "#56B461",
       "shape": "excavator",
-      "endAt": 1778212423288,
+      "endAt": 1778292483717,
       "buyRequested": false,
       "buyRequests": [],
       "bids": [
@@ -136,7 +136,7 @@
           "user": "opening",
           "name": "Opening bid",
           "amount": 118000,
-          "at": 1778195083288,
+          "at": 1778246343717,
           "type": "opening"
         }
       ],
