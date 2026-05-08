@@ -1,0 +1,33 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  build-and-smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - name: Start server
+        run: |
+          npm start > /tmp/auction-server.log 2>&1 &
+          echo $! > /tmp/auction-server.pid
+          for i in {1..30}; do
+            curl -fsS http://127.0.0.1:4173/healthz && exit 0
+            sleep 1
+          done
+          cat /tmp/auction-server.log
+          exit 1
+      - run: npm run smoke
+      - name: Server logs
+        if: always()
+        run: cat /tmp/auction-server.log || true
