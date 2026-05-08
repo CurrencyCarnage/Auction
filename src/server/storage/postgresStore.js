@@ -260,6 +260,104 @@ export class PostgresAuctionStore {
     }
   }
 
+  async adminOpenLotsTx(hours) {
+    const client = await this.pool.connect();
+    try {
+      await client.query('BEGIN');
+      const lots = (await client.query(`SELECT id FROM lots WHERE status <> 'cancelled' ORDER BY COALESCE(ends_at, created_at), created_at FOR UPDATE`)).rows;
+      for (let i = 0; i < lots.length; i++) {
+        await client.query(`UPDATE lots SET status='live', ends_at=$1, updated_at=now() WHERE id=$2`, [date(Date.now() + (hours * 60 * 60 * 1000) + i * 7 * 60 * 1000), lots[i].id]);
+      }
+      await client.query(`INSERT INTO audit_events (actor_type, action, detail) VALUES ('admin','lots.open_hours',$1)`, [{ hours }]);
+      await client.query('COMMIT');
+      return { state: await this.readStateAsync(), message: `All auctions opened for about ${hours} hours` };
+    } catch (e) {
+      await client.query('ROLLBACK');
+      throw e;
+    } finally {
+      client.release();
+    }
+  }
+
+  async adminSaveLotTx(input) {
+    const client = await this.pool.connect();
+    try {
+      await client.query('BEGIN');
+      const slug = String(input.id || input.model || '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '') || `lot-${Date.now()}`;
+      const endAt = input.endAt ? new Date(input.endAt) : date(input.endAtMs || Date.now() + 8 * 60 * 60 * 1000);
+      const existing = (await client.query('SELECT id FROM lots WHERE slug=$1 FOR UPDATE', [slug])).rows[0];
+      const result = await client.query(`
+        INSERT INTO lots (
+          slug, brand, model, equipment_type, manufacture_year, usage_label, location, status,
+          starting_price_amount, current_bid_amount, buy_now_amount, bid_increment_amount,
+          starts_at, ends_at, published_at, image_key, ui_accent, ui_shape, suspicious
+        ) VALUES ($1,$2,$3,$4,$5,$6,$7,'live',$8,$8,$9,$10,now(),$11,now(),$12,$13,$14,false)
+        ON CONFLICT (slug) DO UPDATE SET
+          brand=EXCLUDED.brand,
+          model=EXCLUDED.model,
+          equipment_type=EXCLUDED.equipment_type,
+          manufacture_year=EXCLUDED.manufacture_year,
+          usage_label=EXCLUDED.usage_label,
+          location=EXCLUDED.location,
+          current_bid_amount=EXCLUDED.current_bid_amount,
+          buy_now_amount=EXCLUDED.buy_now_amount,
+          bid_increment_amount=EXCLUDED.bid_increment_amount,
+          ends_at=EXCLUDED.ends_at,
+          image_key=EXCLUDED.image_key,
+          ui_accent=EXCLUDED.ui_accent,
+          ui_shape=EXCLUDED.ui_shape,
+          status='live',
+          updated_at=now()
+        RETURNING id
+      `, [
+        slug,
+        String(input.brand || 'SHACMAN').toUpperCase(),
+        input.model || 'New Auction Lot',
+        input.type || 'Heavy Truck',
+        input.year || new Date().getFullYear(),
+        input.hours || '0 h',
+        input.location || 'Tbilisi Yard',
+        input.current || 0,
+        input.buyNow || 0,
+        input.increment || 1000,
+        endAt,
+        input.imageKey || slug,
+        '#56B461',
+        'truck',
+      ]);
+      if (!existing) {
+        await client.query(`INSERT INTO bids (lot_id, user_id, amount, kind, status) VALUES ($1,NULL,$2,'opening','valid')`, [result.rows[0].id, input.current || 0]);
+      }
+      await client.query(`INSERT INTO audit_events (actor_type, action, entity_type, entity_id, detail) VALUES ('admin',$1,'lot',$2,$3)`, [existing ? 'lot.updated' : 'lot.added', result.rows[0].id, { lotId: slug, model: input.model }]);
+      await client.query('COMMIT');
+      return { state: await this.readStateAsync(), message: existing ? 'Lot updated' : 'Lot added' };
+    } catch (e) {
+      await client.query('ROLLBACK');
+      throw e;
+    } finally {
+      client.release();
+    }
+  }
+
+  async adminRemoveLotTx(slug) {
+    const client = await this.pool.connect();
+    try {
+      await client.query('BEGIN');
+      const lot = (await client.query(`SELECT id, model FROM lots WHERE slug=$1 FOR UPDATE`, [slug])).rows[0];
+      if (lot) {
+        await client.query(`UPDATE lots SET status='cancelled', updated_at=now() WHERE id=$1`, [lot.id]);
+        await client.query(`INSERT INTO audit_events (actor_type, action, entity_type, entity_id, detail) VALUES ('admin','lot.removed','lot',$1,$2)`, [lot.id, { lotId: slug, model: lot.model }]);
+      }
+      await client.query('COMMIT');
+      return { state: await this.readStateAsync(), message: 'Lot removed' };
+    } catch (e) {
+      await client.query('ROLLBACK');
+      throw e;
+    } finally {
+      client.release();
+    }
+  }
+
   async writeStateAsync(state) {
     const client = await this.pool.connect();
     try {

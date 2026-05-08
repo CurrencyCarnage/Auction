@@ -18,4 +18,10 @@ The app now has a PostgreSQL storage adapter behind `STORAGE_DRIVER=postgres`, b
 
 `writeStateAsync()` is still a parity bridge for admin/demo snapshot persistence. Bidder-facing Postgres commands are now transaction-shaped, but they still need integration testing against a real Postgres database before enabling `STORAGE_DRIVER=postgres` anywhere public.
 
-Next production step: implement dedicated admin transaction methods (`adminSaveLotTx`, `adminRemoveLotTx`, `adminOpenLotsTx`) and run the full test suite against a real staging database.
+Admin transaction methods are also implemented:
+
+- `adminOpenLotsTx(hours)` locks non-cancelled lots and updates end times.
+- `adminSaveLotTx(lot)` upserts a live lot and creates an opening bid for new lots.
+- `adminRemoveLotTx(slug)` soft-cancels the lot so production history is preserved while the public API hides it.
+
+Next production step: run the full test suite against a real staging PostgreSQL database and then replace demo header auth with real sessions/users.
