@@ -8,7 +8,8 @@
     "smoke": "node scripts/smoke-test.mjs",
     "db:migrate": "node src/server/db/migrate.js",
     "db:seed-demo": "node src/server/db/seedDemo.js",
-    "test:behavior": "node scripts/behavior-test.mjs"
+    "test:behavior": "node scripts/behavior-test.mjs",
+    "test:postgres": "node scripts/postgres-parity-test.mjs"
   },
   "dependencies": {
     "@vitejs/plugin-react": "latest",
