@@ -53,7 +53,8 @@ export class AuctionService {
     return { ...state, audit: undefined };
   }
   users() { return users.map(publicUser); }
-  login(username, password) {
+  async login(username, password) {
+    if (this.store.findBidderByLogin) return this.store.findBidderByLogin(username, password);
     const user = users.find(u => u.username === String(username || '').toLowerCase().trim() && u.password === password);
     if (!user) return null;
     return publicUser(user);

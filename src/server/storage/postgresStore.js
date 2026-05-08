@@ -1,4 +1,5 @@
 import { createPool } from '../db/pool.js';
+import { verifyPassword } from '../auth/password.js';
 import { freshState } from './seedData.js';
 
 function num(value, fallback = 0) {
@@ -18,7 +19,10 @@ function usernameFromEmail(email) {
 }
 function emailForUser(username) {
   if (!username || username === 'opening') return null;
-  return String(username).includes('@') ? String(username) : `${username}@example.local`;
+  return String(username).includes('@') ? String(username).toLowerCase() : `${String(username).toLowerCase()}@example.local`;
+}
+function normalizeLogin(login) {
+  return String(login || '').trim().toLowerCase();
 }
 function publicBid(row) {
   const username = usernameFromEmail(row.bid_user);
@@ -39,6 +43,33 @@ export class PostgresAuctionStore {
   constructor(config) {
     this.config = config;
     this.pool = createPool(config);
+  }
+
+  async findBidderByLogin(login, password) {
+    const normalized = normalizeLogin(login);
+    const email = normalized.includes('@') ? normalized : emailForUser(normalized);
+    const row = (await this.pool.query(`
+      SELECT email, password_hash, display_name, status, bid_limit_amount
+      FROM users
+      WHERE lower(email) = $1 OR phone = $2
+      LIMIT 1
+    `, [email, normalized])).rows[0];
+    if (!row || !verifyPassword(password, row.password_hash)) return null;
+    const username = usernameFromEmail(row.email) || normalized;
+    return { username, name: row.display_name, limit: num(row.bid_limit_amount), status: row.status };
+  }
+
+  async findAdminByLogin(login, password) {
+    const normalized = normalizeLogin(login);
+    const email = normalized.includes('@') ? normalized : `${normalized}@example.local`;
+    const row = (await this.pool.query(`
+      SELECT email, password_hash, display_name, role, status
+      FROM admin_users
+      WHERE lower(email) = $1
+      LIMIT 1
+    `, [email])).rows[0];
+    if (!row || !verifyPassword(password, row.password_hash)) return null;
+    return { username: usernameFromEmail(row.email), name: row.display_name, role: row.role, status: row.status };
   }
 
   async readStateAsync() {

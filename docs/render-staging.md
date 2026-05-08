@@ -1,6 +1,12 @@
 # Render Staging Setup
 
-Use this to create a separate Render service backed by Neon PostgreSQL, without touching the working JSON demo service.
+Use this to create or maintain a separate Render service backed by Neon PostgreSQL, without touching the working JSON demo service.
+
+Current staging service:
+
+- URL: `https://gt-auction-staging.onrender.com`
+- Dashboard: `https://dashboard.render.com/web/srv-d7v4c6tb910c73alh2j0`
+- Render service id: `srv-d7v4c6tb910c73alh2j0`
 
 ## Create service
 
@@ -32,7 +38,7 @@ DATABASE_URL=postgresql://...neon.../neondb?sslmode=verify-full
 SESSION_SECRET=<long random string>
 ADMIN_SESSION_TOKEN=<long random string>
 ADMIN_USERNAME=admin
-ADMIN_PASSWORD=admin
+ADMIN_PASSWORD=<staging admin password>
 ```
 
 Notes:

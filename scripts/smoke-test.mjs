@@ -27,8 +27,8 @@ const adminHeaders = { 'x-admin-token': adminLogin.admin.token };
 await request('/api/admin/open-hours', { method: 'POST', headers: adminHeaders, body: JSON.stringify({ hours: 5 }) });
 
 const login = await request('/api/login', { method: 'POST', body: JSON.stringify({ username: 'user1', password: 'pass1' }) });
-assert(login.user?.username === 'user1', 'bidder login should work');
-const userHeaders = { 'x-demo-user': 'user1' };
+assert(login.user?.username === 'user1' && login.user?.token, 'bidder login should return a session token');
+const userHeaders = { Authorization: `Bearer ${login.user.token}` };
 await request('/api/bid', { method: 'POST', headers: userHeaders, body: JSON.stringify({ lotId: lot.id, amount: lot.current + lot.increment }) });
 await request('/api/proxy', { method: 'POST', headers: userHeaders, body: JSON.stringify({ lotId: lot.id, max: lot.current + lot.increment * 3 }) });
 await request('/api/buy-now', { method: 'POST', headers: userHeaders, body: JSON.stringify({ lotId: lot.id }) });

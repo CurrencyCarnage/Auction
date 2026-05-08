@@ -1,5 +1,5 @@
 import fs from 'fs';
-import { freshState, hour } from './seedData.js';
+import { freshState, hour, users } from './seedData.js';
 
 function stateNeedsRefresh(state) {
   if (!state?.lots?.length) return true;
@@ -11,6 +11,17 @@ function stateNeedsRefresh(state) {
 
 export class JsonAuctionStore {
   constructor(config) { this.config = config; }
+  async findBidderByLogin(username, password) {
+    const normalized = String(username || '').toLowerCase().trim();
+    const user = users.find(u => u.username === normalized && u.password === password);
+    return user && { username: user.username, name: user.name, limit: user.limit, status: 'approved' };
+  }
+  async findAdminByLogin(username, password) {
+    if (username === this.config.adminUsername && password === this.config.adminPassword) {
+      return { username: this.config.adminUsername, name: 'Demo Admin', role: 'super_admin', status: 'active' };
+    }
+    return null;
+  }
   ensureState() {
     fs.mkdirSync(this.config.dataDir, { recursive: true });
     if (!fs.existsSync(this.config.stateFile)) this.writeState(freshState());

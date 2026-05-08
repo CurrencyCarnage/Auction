@@ -3,6 +3,11 @@ import { audit, normalizeLot, slug } from './auctionService.js';
 
 export class AdminService {
   constructor(store) { this.store = store; }
+  async login(username, password, config) {
+    if (this.store.findAdminByLogin) return this.store.findAdminByLogin(username, password);
+    if (username === config.adminUsername && password === config.adminPassword) return { username: config.adminUsername, name: 'Admin', role: 'super_admin', status: 'active' };
+    return null;
+  }
   async auditEvents() { return (await this.store.readStateAsync()).audit || []; }
   async openHours(hours) {
     if (this.store.adminOpenLotsTx) return this.store.adminOpenLotsTx(hours);

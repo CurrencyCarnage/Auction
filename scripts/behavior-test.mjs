@@ -12,11 +12,14 @@ async function request(path, options = {}, expected = 200) {
 function assert(condition, message) { if (!condition) throw new Error(message); }
 
 const adminLogin = await request('/api/admin/login', { method: 'POST', body: JSON.stringify({ username: 'admin', password: 'admin' }) });
+assert(adminLogin.admin.role === 'super_admin', 'admin login should include a role');
 const adminHeaders = { 'x-admin-token': adminLogin.admin.token };
 await request('/api/reset', { method: 'POST' });
 let state = await request('/api/state');
 const lot = state.lots[0];
-const bidderHeaders = { 'x-demo-user': 'user1' };
+const bidderLogin = await request('/api/login', { method: 'POST', body: JSON.stringify({ username: 'user1', password: 'pass1' }) });
+assert(bidderLogin.user.status === 'approved', 'bidder login should expose approval status');
+const bidderHeaders = { Authorization: `Bearer ${bidderLogin.user.token}` };
 
 await request('/api/bid', { method: 'POST', headers: bidderHeaders, body: JSON.stringify({ lotId: lot.id, amount: lot.current }) }, 400);
 await request('/api/bid', { method: 'POST', body: JSON.stringify({ lotId: lot.id, amount: lot.current + lot.increment }) }, 401);
@@ -25,7 +28,8 @@ await request('/api/bid', { method: 'POST', headers: bidderHeaders, body: JSON.s
 const bid1 = await request('/api/bid', { method: 'POST', headers: bidderHeaders, body: JSON.stringify({ lotId: lot.id, amount: lot.current + lot.increment }) });
 assert(bid1.state.lots.find(l => l.id === lot.id).current === lot.current + lot.increment, 'valid bid should update current amount');
 
-const proxySaved = await request('/api/proxy', { method: 'POST', headers: { 'x-demo-user': 'user2' }, body: JSON.stringify({ lotId: lot.id, max: lot.current + lot.increment * 4 }) });
+const proxyLogin = await request('/api/login', { method: 'POST', body: JSON.stringify({ username: 'user2', password: 'pass2' }) });
+const proxySaved = await request('/api/proxy', { method: 'POST', headers: { Authorization: `Bearer ${proxyLogin.user.token}` }, body: JSON.stringify({ lotId: lot.id, max: lot.current + lot.increment * 4 }) });
 const afterProxySave = proxySaved.state.lots.find(l => l.id === lot.id);
 const bid2Amount = afterProxySave.current + afterProxySave.increment;
 const bid2 = await request('/api/bid', { method: 'POST', headers: bidderHeaders, body: JSON.stringify({ lotId: lot.id, amount: bid2Amount }) });

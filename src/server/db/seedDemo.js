@@ -1,6 +1,7 @@
 import { createConfig } from '../config.js';
 import { createPool } from './pool.js';
 import { seedLots, users } from '../storage/seedData.js';
+import { hashPassword } from '../auth/password.js';
 import { fileURLToPath } from 'url';
 import path from 'path';
 
@@ -17,16 +18,16 @@ async function run() {
     await client.query('BEGIN');
     await client.query(`
       INSERT INTO admin_users (email, password_hash, display_name, role, status)
-      VALUES ('admin@example.local', 'demo-only-admin-password-admin', 'Demo Admin', 'super_admin', 'active')
-      ON CONFLICT (email) DO NOTHING
-    `);
+      VALUES ('admin@example.local', $1, 'Demo Admin', 'super_admin', 'active')
+      ON CONFLICT (email) DO UPDATE SET password_hash = EXCLUDED.password_hash, display_name = EXCLUDED.display_name, role = EXCLUDED.role, status = EXCLUDED.status
+    `, [hashPassword('admin')]);
 
     for (const user of users) {
       await client.query(`
         INSERT INTO users (email, phone, password_hash, display_name, status, bid_limit_amount, email_verified_at)
         VALUES ($1, NULL, $2, $3, 'approved', $4, now())
-        ON CONFLICT (email) DO UPDATE SET display_name = EXCLUDED.display_name, bid_limit_amount = EXCLUDED.bid_limit_amount
-      `, [`${user.username}@example.local`, `demo-only-password-${user.password}`, user.name, user.limit]);
+        ON CONFLICT (email) DO UPDATE SET password_hash = EXCLUDED.password_hash, display_name = EXCLUDED.display_name, status = EXCLUDED.status, bid_limit_amount = EXCLUDED.bid_limit_amount
+      `, [`${user.username}@example.local`, hashPassword(user.password), user.name, user.limit]);
     }
 
     for (const lot of seedLots) {
